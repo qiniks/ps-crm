@@ -1,0 +1,82 @@
+// PlayStation Club CRM — data model
+// Dev: SQLite (file:./dev.db). For production switch provider to "postgresql".
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Staff accounts. role: ADMIN | CASHIER
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  login        String   @unique
+  passwordHash String
+  role         String   @default("CASHIER")
+  createdAt    DateTime @default(now())
+  shifts       Shift[]
+}
+
+// A console booth/seat in the club.
+// type: PS4 | PS5 | VR  •  status: FREE | BUSY | MAINTENANCE
+model Station {
+  id         String    @id @default(cuid())
+  name       String
+  type       String    @default("PS5")
+  status     String    @default("FREE")
+  hourlyRate Int       @default(200) // default price/hour in minor units of local currency
+  sessions   Session[]
+}
+
+// Price plans. e.g. "Day", "Night", "Happy Hours"
+model Tariff {
+  id           String    @id @default(cuid())
+  name         String
+  pricePerHour Int
+  isDefault    Boolean   @default(false)
+  sessions     Session[]
+}
+
+// A club customer.
+model Customer {
+  id          String    @id @default(cuid())
+  name        String
+  phone       String?   @unique
+  balance     Int       @default(0) // prepaid balance, minor units
+  bonusPoints Int       @default(0)
+  createdAt   DateTime  @default(now())
+  sessions    Session[]
+}
+
+// A play session on a station. cost is computed on stop.
+// status: ACTIVE | FINISHED
+model Session {
+  id         String    @id @default(cuid())
+  station    Station   @relation(fields: [stationId], references: [id])
+  stationId  String
+  customer   Customer? @relation(fields: [customerId], references: [id])
+  customerId String?
+  tariff     Tariff?   @relation(fields: [tariffId], references: [id])
+  tariffId   String?
+  startedAt  DateTime  @default(now())
+  endedAt    DateTime?
+  cost       Int       @default(0)
+  status     String    @default("ACTIVE")
+  shift      Shift?    @relation(fields: [shiftId], references: [id])
+  shiftId    String?
+}
+
+// A cashier work shift; sessions roll up into a shift for revenue reports.
+model Shift {
+  id           String    @id @default(cuid())
+  user         User      @relation(fields: [userId], references: [id])
+  userId       String
+  openedAt     DateTime  @default(now())
+  closedAt     DateTime?
+  totalRevenue Int       @default(0)
+  sessions     Session[]
+}
