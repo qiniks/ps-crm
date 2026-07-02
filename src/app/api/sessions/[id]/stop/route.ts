@@ -1,27 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { computeCost } from "@/lib/format";
+import { openCost } from "@/lib/tariffs";
 
-// POST /api/sessions/[id]/stop — finish a session and bill it.
+// POST /api/sessions/[id]/stop — finish a session and finalize the bill.
 export async function POST(
   _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   const session = await prisma.session.findUnique({
     where: { id: params.id },
-    include: { station: true, tariff: true },
+    include: { station: { include: { room: true } } },
   });
 
-  if (!session) {
-    return NextResponse.json({ error: "Session not found" }, { status: 404 });
-  }
+  if (!session) return NextResponse.json({ error: "Session not found" }, { status: 404 });
   if (session.status === "FINISHED") {
     return NextResponse.json({ error: "Session already finished" }, { status: 409 });
   }
 
   const endedAt = new Date();
-  const rate = session.tariff?.pricePerHour ?? session.station.hourlyRate;
-  const cost = computeCost(session.startedAt, endedAt, rate);
+  // OPEN tariff is billed by elapsed time; fixed tariffs keep their up-front cost.
+  const cost =
+    session.tariffKind === "OPEN"
+      ? openCost(session.startedAt, endedAt, session.station.room.openHourlyRate)
+      : session.cost;
 
   const updated = await prisma.session.update({
     where: { id: session.id },

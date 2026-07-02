@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
-import { formatDuration, formatMoney } from "@/lib/format";
+import { formatMoney } from "@/lib/format";
+import type { TranslationKey } from "@/lib/i18n/dictionaries";
 
 type Report = {
   revenueToday: number;
@@ -11,8 +13,8 @@ type Report = {
   recent: {
     id: string;
     station: string;
+    tariffKind: string;
     customerName: string | null;
-    startedAt: string;
     endedAt: string | null;
     cost: number;
   }[];
@@ -20,20 +22,19 @@ type Report = {
 
 export default function ReportsPage() {
   const { t, locale } = useI18n();
+  const { clubId } = useParams<{ clubId: string }>();
   const [report, setReport] = useState<Report | null>(null);
 
   useEffect(() => {
-    fetch("/api/reports", { cache: "no-store" })
+    fetch(`/api/clubs/${clubId}/reports`, { cache: "no-store" })
       .then((r) => r.json())
       .then(setReport);
-  }, []);
+  }, [clubId]);
 
-  if (!report) {
-    return <div className="text-slate-400">{t("common.loading")}</div>;
-  }
+  if (!report) return <div className="text-slate-400">{t("common.loading")}</div>;
 
   return (
-    <div>
+    <div className="mx-auto max-w-5xl">
       <h1 className="mb-6 text-2xl font-bold text-white">{t("reports.title")}</h1>
 
       <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -52,8 +53,8 @@ export default function ReportsPage() {
           <thead className="bg-slate-900 text-left text-slate-400">
             <tr>
               <th className="px-4 py-3 font-medium">{t("reports.station")}</th>
+              <th className="px-4 py-3 font-medium">{t("reports.tariff")}</th>
               <th className="px-4 py-3 font-medium">{t("customers.name")}</th>
-              <th className="px-4 py-3 font-medium">{t("reports.duration")}</th>
               <th className="px-4 py-3 font-medium">{t("reports.amount")}</th>
               <th className="px-4 py-3 font-medium">{t("reports.when")}</th>
             </tr>
@@ -66,31 +67,21 @@ export default function ReportsPage() {
                 </td>
               </tr>
             ) : (
-              report.recent.map((s) => {
-                const dur =
-                  s.endedAt && s.startedAt
-                    ? new Date(s.endedAt).getTime() - new Date(s.startedAt).getTime()
-                    : 0;
-                return (
-                  <tr key={s.id} className="border-t border-slate-800">
-                    <td className="px-4 py-3 text-white">{s.station}</td>
-                    <td className="px-4 py-3 text-slate-300">
-                      {s.customerName ?? "—"}
-                    </td>
-                    <td className="px-4 py-3 font-mono text-slate-300">
-                      {formatDuration(dur)}
-                    </td>
-                    <td className="px-4 py-3 text-emerald-300">
-                      {formatMoney(s.cost)} {t("common.currency")}
-                    </td>
-                    <td className="px-4 py-3 text-slate-400">
-                      {s.endedAt
-                        ? new Date(s.endedAt).toLocaleString(locale)
-                        : "—"}
-                    </td>
-                  </tr>
-                );
-              })
+              report.recent.map((s) => (
+                <tr key={s.id} className="border-t border-slate-800">
+                  <td className="px-4 py-3 text-white">{s.station}</td>
+                  <td className="px-4 py-3 text-slate-300">
+                    {t(`tariff.${s.tariffKind}` as TranslationKey)}
+                  </td>
+                  <td className="px-4 py-3 text-slate-300">{s.customerName ?? "—"}</td>
+                  <td className="px-4 py-3 text-emerald-300">
+                    {formatMoney(s.cost)} {t("common.currency")}
+                  </td>
+                  <td className="px-4 py-3 text-slate-400">
+                    {s.endedAt ? new Date(s.endedAt).toLocaleString(locale) : "—"}
+                  </td>
+                </tr>
+              ))
             )}
           </tbody>
         </table>

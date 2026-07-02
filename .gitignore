@@ -19,8 +19,10 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# local env files
+# local env files (contain secrets — never commit)
+.env
 .env*.local
+!.env.example
 
 # database (SQLite dev)
 /prisma/*.db
