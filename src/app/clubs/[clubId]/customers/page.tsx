@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
 import { formatMoney } from "@/lib/format";
 
@@ -10,19 +11,19 @@ type Customer = {
   phone: string | null;
   balance: number;
   bonusPoints: number;
-  createdAt: string;
 };
 
 export default function CustomersPage() {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
+  const { clubId } = useParams<{ clubId: string }>();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/customers", { cache: "no-store" });
+    const res = await fetch(`/api/clubs/${clubId}/customers`, { cache: "no-store" });
     setCustomers(await res.json());
-  }, []);
+  }, [clubId]);
 
   useEffect(() => {
     load();
@@ -31,7 +32,7 @@ export default function CustomersPage() {
   async function add(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
-    await fetch("/api/customers", {
+    await fetch(`/api/clubs/${clubId}/customers`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, phone }),
@@ -42,7 +43,7 @@ export default function CustomersPage() {
   }
 
   return (
-    <div>
+    <div className="mx-auto max-w-4xl">
       <h1 className="mb-6 text-2xl font-bold text-white">{t("customers.title")}</h1>
 
       <form onSubmit={add} className="mb-6 flex flex-wrap gap-3">
@@ -71,13 +72,12 @@ export default function CustomersPage() {
               <th className="px-4 py-3 font-medium">{t("customers.phone")}</th>
               <th className="px-4 py-3 font-medium">{t("customers.balance")}</th>
               <th className="px-4 py-3 font-medium">{t("customers.bonus")}</th>
-              <th className="px-4 py-3 font-medium">{t("customers.since")}</th>
             </tr>
           </thead>
           <tbody>
             {customers.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-slate-500">
+                <td colSpan={4} className="px-4 py-6 text-center text-slate-500">
                   {t("customers.empty")}
                 </td>
               </tr>
@@ -90,9 +90,6 @@ export default function CustomersPage() {
                     {formatMoney(c.balance)} {t("common.currency")}
                   </td>
                   <td className="px-4 py-3 text-slate-300">{c.bonusPoints}</td>
-                  <td className="px-4 py-3 text-slate-400">
-                    {new Date(c.createdAt).toLocaleDateString(locale)}
-                  </td>
                 </tr>
               ))
             )}

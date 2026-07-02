@@ -1,16 +1,22 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/reports — today's revenue summary + recent finished sessions.
-export async function GET() {
+// GET /api/clubs/[clubId]/reports — today's revenue summary + recent sessions.
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: { clubId: string } }
+) {
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
 
   const todays = await prisma.session.findMany({
-    where: { status: "FINISHED", endedAt: { gte: startOfDay } },
-    include: { station: true },
+    where: {
+      tenantId: params.clubId,
+      status: "FINISHED",
+      endedAt: { gte: startOfDay },
+    },
   });
 
   const revenueToday = todays.reduce((sum, s) => sum + s.cost, 0);
@@ -18,7 +24,7 @@ export async function GET() {
   const avgCheck = sessionsToday ? Math.round(revenueToday / sessionsToday) : 0;
 
   const recent = await prisma.session.findMany({
-    where: { status: "FINISHED" },
+    where: { tenantId: params.clubId, status: "FINISHED" },
     include: { station: true, customer: true },
     orderBy: { endedAt: "desc" },
     take: 20,
@@ -31,8 +37,8 @@ export async function GET() {
     recent: recent.map((s) => ({
       id: s.id,
       station: s.station.name,
+      tariffKind: s.tariffKind,
       customerName: s.customer?.name ?? null,
-      startedAt: s.startedAt,
       endedAt: s.endedAt,
       cost: s.cost,
     })),

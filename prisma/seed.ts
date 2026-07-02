@@ -3,49 +3,67 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 async function main() {
-  // Clean slate (dev only)
+  // Clean slate (dev only). Order respects FKs; cascades handle the rest.
   await prisma.session.deleteMany();
-  await prisma.shift.deleteMany();
-  await prisma.tariff.deleteMany();
-  await prisma.customer.deleteMany();
   await prisma.station.deleteMany();
-  await prisma.user.deleteMany();
+  await prisma.room.deleteMany();
+  await prisma.customer.deleteMany();
+  await prisma.tenant.deleteMany();
 
-  await prisma.user.create({
+  const club = await prisma.tenant.create({ data: { name: "GameZone Bishkek" } });
+
+  // Standard hall — cheaper.
+  const standard = await prisma.room.create({
     data: {
-      name: "Администратор",
-      login: "admin",
-      // NOTE: demo only — replace with a real password hash (bcrypt) before production.
-      passwordHash: "admin",
-      role: "ADMIN",
+      tenantId: club.id,
+      name: "Стандартный зал / Standard hall",
+      price1h: 150,
+      price3h: 400,
+      price5h: 600,
+      openHourlyRate: 150,
     },
   });
 
-  await prisma.tariff.createMany({
-    data: [
-      { name: "День / Day", pricePerHour: 200, isDefault: true },
-      { name: "Ночь / Night", pricePerHour: 150 },
-      { name: "Happy Hours", pricePerHour: 120 },
-    ],
+  // VIP room — pricier.
+  const vip = await prisma.room.create({
+    data: {
+      tenantId: club.id,
+      name: "VIP",
+      price1h: 300,
+      price3h: 800,
+      price5h: 1200,
+      openHourlyRate: 300,
+    },
   });
 
-  const stations = [
-    { name: "PS5 #1", type: "PS5", hourlyRate: 250 },
-    { name: "PS5 #2", type: "PS5", hourlyRate: 250 },
-    { name: "PS5 #3", type: "PS5", hourlyRate: 250 },
-    { name: "PS4 #1", type: "PS4", hourlyRate: 200 },
-    { name: "PS4 #2", type: "PS4", hourlyRate: 200 },
-    { name: "VIP Room", type: "PS5", hourlyRate: 400 },
+  // Place a few consoles on each floor plan (posX/posY as % of the canvas).
+  const layout = [
+    { room: standard, name: "PS5 #1", type: "PS5", posX: 20, posY: 25 },
+    { room: standard, name: "PS5 #2", type: "PS5", posX: 50, posY: 25 },
+    { room: standard, name: "PS5 #3", type: "PS5", posX: 80, posY: 25 },
+    { room: standard, name: "PS4 #1", type: "PS4", posX: 30, posY: 70 },
+    { room: standard, name: "PS4 #2", type: "PS4", posX: 70, posY: 70 },
+    { room: vip, name: "VIP #1", type: "PS5", posX: 35, posY: 45 },
+    { room: vip, name: "VIP #2", type: "PS5", posX: 65, posY: 45 },
   ];
-  for (const s of stations) {
-    await prisma.station.create({ data: s });
+  for (const s of layout) {
+    await prisma.station.create({
+      data: {
+        tenantId: club.id,
+        roomId: s.room.id,
+        name: s.name,
+        type: s.type,
+        posX: s.posX,
+        posY: s.posY,
+      },
+    });
   }
 
   await prisma.customer.createMany({
     data: [
-      { name: "Иван Петров", phone: "+996700111222", balance: 500, bonusPoints: 30 },
-      { name: "Aibek Toktosunov", phone: "+996700333444", balance: 0, bonusPoints: 10 },
-      { name: "Мария Иванова", phone: "+996700555666", balance: 1200, bonusPoints: 80 },
+      { tenantId: club.id, name: "Иван Петров", phone: "+996700111222", balance: 500, bonusPoints: 30 },
+      { tenantId: club.id, name: "Aibek Toktosunov", phone: "+996700333444", bonusPoints: 10 },
+      { tenantId: club.id, name: "Мария Иванова", phone: "+996700555666", balance: 1200, bonusPoints: 80 },
     ],
   });
 

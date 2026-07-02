@@ -1,5 +1,5 @@
-// PlayStation Club CRM — data model
-// Dev: SQLite (file:./dev.db). For production switch provider to "postgresql".
+// PlayStation Club CRM — multi-tenant data model
+// Dev/Prod: PostgreSQL (Supabase). Switch provider to "sqlite" for local file dev.
 
 generator client {
   provider = "prisma-client-js"
@@ -10,73 +10,88 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Staff accounts. role: ADMIN | CASHIER
-model User {
-  id           String   @id @default(cuid())
-  name         String
-  login        String   @unique
-  passwordHash String
-  role         String   @default("CASHIER")
-  createdAt    DateTime @default(now())
-  shifts       Shift[]
+// A PlayStation club. Everything below belongs to exactly one tenant.
+model Tenant {
+  id        String     @id @default(cuid())
+  name      String
+  createdAt DateTime   @default(now())
+  rooms     Room[]
+  stations  Station[]
+  customers Customer[]
+  sessions  Session[]
 }
 
-// A console booth/seat in the club.
-// type: PS4 | PS5 | VR  •  status: FREE | BUSY | MAINTENANCE
+// A room inside a club (e.g. "Standard hall", "VIP room").
+// Pricing lives on the room, so a VIP room can be pricier than a cheap one.
+// Prices are whole minor units of local currency (som).
+model Room {
+  id             String    @id @default(cuid())
+  tenant         Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId       String
+  name           String
+  price1h        Int       @default(0) // fixed price for the 1-hour tariff
+  price3h        Int       @default(0) // fixed price for the 3-hour tariff
+  price5h        Int       @default(0) // fixed price for the 5-hour tariff
+  openHourlyRate Int       @default(0) // per-hour rate for the "open / until done" tariff
+  createdAt      DateTime  @default(now())
+  stations       Station[]
+
+  @@index([tenantId])
+}
+
+// A physical PlayStation placed on the room's floor plan.
+// posX / posY are percentages (0..100) of the room canvas, so the layout is responsive.
 model Station {
-  id         String    @id @default(cuid())
-  name       String
-  type       String    @default("PS5")
-  status     String    @default("FREE")
-  hourlyRate Int       @default(200) // default price/hour in minor units of local currency
-  sessions   Session[]
+  id        String    @id @default(cuid())
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId  String
+  room      Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  roomId    String
+  name      String
+  type      String    @default("PS5") // PS4 | PS5
+  status    String    @default("FREE") // FREE | BUSY | MAINTENANCE
+  posX      Float     @default(50)
+  posY      Float     @default(50)
+  sessions  Session[]
+
+  @@index([roomId])
+  @@index([tenantId])
 }
 
-// Price plans. e.g. "Day", "Night", "Happy Hours"
-model Tariff {
-  id           String    @id @default(cuid())
-  name         String
-  pricePerHour Int
-  isDefault    Boolean   @default(false)
-  sessions     Session[]
-}
-
-// A club customer.
+// A club customer (optional on a booking).
 model Customer {
   id          String    @id @default(cuid())
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId    String
   name        String
-  phone       String?   @unique
-  balance     Int       @default(0) // prepaid balance, minor units
+  phone       String?
+  balance     Int       @default(0)
   bonusPoints Int       @default(0)
   createdAt   DateTime  @default(now())
   sessions    Session[]
+
+  @@index([tenantId])
 }
 
-// A play session on a station. cost is computed on stop.
-// status: ACTIVE | FINISHED
+// A play session / booking on a station.
+// tariffKind: HOUR_1 | HOUR_3 | HOUR_5 | OPEN
+// For fixed tariffs cost is set at booking and plannedEndAt is filled.
+// For OPEN, cost is computed on stop from elapsed time * room.openHourlyRate.
 model Session {
-  id         String    @id @default(cuid())
-  station    Station   @relation(fields: [stationId], references: [id])
-  stationId  String
-  customer   Customer? @relation(fields: [customerId], references: [id])
-  customerId String?
-  tariff     Tariff?   @relation(fields: [tariffId], references: [id])
-  tariffId   String?
-  startedAt  DateTime  @default(now())
-  endedAt    DateTime?
-  cost       Int       @default(0)
-  status     String    @default("ACTIVE")
-  shift      Shift?    @relation(fields: [shiftId], references: [id])
-  shiftId    String?
-}
-
-// A cashier work shift; sessions roll up into a shift for revenue reports.
-model Shift {
   id           String    @id @default(cuid())
-  user         User      @relation(fields: [userId], references: [id])
-  userId       String
-  openedAt     DateTime  @default(now())
-  closedAt     DateTime?
-  totalRevenue Int       @default(0)
-  sessions     Session[]
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId     String
+  station      Station   @relation(fields: [stationId], references: [id], onDelete: Cascade)
+  stationId    String
+  customer     Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customerId   String?
+  tariffKind   String
+  startedAt    DateTime  @default(now())
+  plannedEndAt DateTime?
+  endedAt      DateTime?
+  cost         Int       @default(0)
+  status       String    @default("ACTIVE") // ACTIVE | FINISHED
+
+  @@index([tenantId])
+  @@index([stationId])
 }
