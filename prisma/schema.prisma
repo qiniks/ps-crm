@@ -2,12 +2,12 @@
 // Dev/Prod: PostgreSQL (Supabase). Switch provider to "sqlite" for local file dev.
 
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 // A PlayStation club. Everything below belongs to exactly one tenant.
