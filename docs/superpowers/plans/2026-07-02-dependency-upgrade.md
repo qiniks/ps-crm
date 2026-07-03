@@ -598,7 +598,13 @@ generator client {
   output   = "../src/generated/prisma"
 }
 ```
-Leave the rest of `schema.prisma` (the `datasource db` block and every model) unchanged — this task only touches the generator block. `output` is relative to `prisma/schema.prisma`'s own directory, so this resolves to `src/generated/prisma/`, reachable from application code via the existing `@/*` path alias as `@/generated/prisma/...`.
+**Correction (found during Task 5 execution, verified by independent reproduction — not in the original plan):** the line below originally said to leave the `datasource db` block unchanged. That's wrong: Prisma 7.8.0 unconditionally rejects a `url` property inside `schema.prisma`'s `datasource` block (error P1012) — this is not conditional on `prisma.config.ts` also declaring a `datasource.url` (both were tested independently; the schema-level `url` alone triggers it). Also remove the `url = env("DATABASE_URL")` line from the `datasource db` block, leaving just:
+```prisma
+datasource db {
+  provider = "postgresql"
+}
+```
+Every model in the file is otherwise unchanged. `output` is relative to `prisma/schema.prisma`'s own directory, so this resolves to `src/generated/prisma/`, reachable from application code via the existing `@/*` path alias as `@/generated/prisma/...`.
 
 - [ ] **Step 3: Create the Prisma config file**
 
