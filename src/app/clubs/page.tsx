@@ -11,11 +11,21 @@ export default function ClubsPage() {
   const [clubs, setClubs] = useState<Club[]>([]);
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/clubs", { cache: "no-store" });
-    setClubs(await res.json());
-    setLoading(false);
+    setLoading(true);
+    setError(false);
+    try {
+      const res = await fetch("/api/clubs", { cache: "no-store" });
+      if (!res.ok) throw new Error(`GET /api/clubs failed: ${res.status}`);
+      setClubs(await res.json());
+    } catch (err) {
+      console.error(err);
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -55,6 +65,10 @@ export default function ClubsPage() {
 
       {loading ? (
         <div className="text-slate-400">{t("common.loading")}</div>
+      ) : error ? (
+        <div className="rounded-xl border border-dashed border-red-800 p-10 text-center text-red-400">
+          {t("common.error")}
+        </div>
       ) : clubs.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-700 p-10 text-center text-slate-500">
           {t("clubs.empty")}
