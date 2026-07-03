@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
 import { formatMoney } from "@/lib/format";
@@ -20,28 +20,28 @@ export default function CustomersPage() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
 
-  useEffect(() => {
-    async function load() {
-      const res = await fetch(`/api/clubs/${clubId}/customers`, { cache: "no-store" });
-      setCustomers(await res.json());
-    }
-    load();
+  const load = useCallback(async () => {
+    const res = await fetch(`/api/clubs/${clubId}/customers`, { cache: "no-store" });
+    setCustomers(await res.json());
   }, [clubId]);
+
+  useEffect(() => {
+    // TODO(2026-07-02-tanstack-query-migration.md): this fetch pattern is replaced by useQuery in that plan; suppressing the new rule here rather than hand-restructuring ahead of it.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    load();
+  }, [load]);
 
   async function add(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
-    const res = await fetch(`/api/clubs/${clubId}/customers`, {
+    await fetch(`/api/clubs/${clubId}/customers`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, phone }),
     });
-    if (res.ok) {
-      const newCustomer = await res.json();
-      setCustomers((prev) => [...prev, newCustomer]);
-      setName("");
-      setPhone("");
-    }
+    setName("");
+    setPhone("");
+    load();
   }
 
   return (

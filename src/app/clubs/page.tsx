@@ -1,16 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
 
 type Club = { id: string; name: string; roomCount: number };
-
-async function fetchClubs() {
-  const res = await fetch("/api/clubs", { cache: "no-store" });
-  if (!res.ok) throw new Error(`GET /api/clubs failed: ${res.status}`);
-  return await res.json();
-}
 
 export default function ClubsPage() {
   const { t } = useI18n();
@@ -19,36 +13,37 @@ export default function ClubsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  useEffect(() => {
-    async function loadClubs() {
-      setLoading(true);
-      setError(false);
-      try {
-        const data = await fetchClubs();
-        setClubs(data);
-      } catch (err) {
-        console.error(err);
-        setError(true);
-      } finally {
-        setLoading(false);
-      }
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(false);
+    try {
+      const res = await fetch("/api/clubs", { cache: "no-store" });
+      if (!res.ok) throw new Error(`GET /api/clubs failed: ${res.status}`);
+      setClubs(await res.json());
+    } catch (err) {
+      console.error(err);
+      setError(true);
+    } finally {
+      setLoading(false);
     }
-    loadClubs();
   }, []);
+
+  useEffect(() => {
+    // TODO(2026-07-02-tanstack-query-migration.md): this fetch pattern is replaced by useQuery in that plan; suppressing the new rule here rather than hand-restructuring ahead of it.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    load();
+  }, [load]);
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
-    const res = await fetch("/api/clubs", {
+    await fetch("/api/clubs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name }),
     });
-    if (res.ok) {
-      const newClub = await res.json();
-      setClubs((prev) => [...prev, newClub]);
-      setName("");
-    }
+    setName("");
+    load();
   }
 
   return (

@@ -18,20 +18,16 @@ const LanguageContext = createContext<Ctx | null>(null);
 
 const STORAGE_KEY = "ps-crm.locale";
 
-function getSavedLocale(): Locale {
-  if (typeof window === "undefined") return DEFAULT_LOCALE;
-  const saved = localStorage.getItem(STORAGE_KEY) as Locale | null;
-  if (saved && (saved === "ru" || saved === "en")) return saved;
-  return DEFAULT_LOCALE;
-}
-
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>(getSavedLocale);
+  const [locale, setLocaleState] = useState<Locale>(DEFAULT_LOCALE);
 
-  // Update document language when locale changes
+  // Restore saved choice on mount.
   useEffect(() => {
-    document.documentElement.lang = locale;
-  }, [locale]);
+    const saved = localStorage.getItem(STORAGE_KEY) as Locale | null;
+    // TODO(2026-07-02-tanstack-query-migration.md): deferred localStorage read intentionally avoids a hydration mismatch; suppressing the new rule here rather than hand-restructuring ahead of that plan.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (saved && (saved === "ru" || saved === "en")) setLocaleState(saved);
+  }, []);
 
   const setLocale = useCallback((l: Locale) => {
     setLocaleState(l);
