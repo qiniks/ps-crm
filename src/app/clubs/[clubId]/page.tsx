@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { notFound, useParams } from "next/navigation";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
 import { formatMoney } from "@/lib/format";
 
@@ -25,9 +25,19 @@ export default function ClubPage() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [form, setForm] = useState(EMPTY);
   const [showForm, setShowForm] = useState(false);
+  const [notFoundFlag, setNotFoundFlag] = useState(false);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/clubs/${clubId}/rooms`, { cache: "no-store" });
+    // requireMembership returns 404 (not 403) for a club that exists but the
+    // signed-in user isn't a member of, so this also covers the cross-tenant
+    // case, not just a truly nonexistent clubId. notFound() only works when
+    // thrown during render, not from inside an async effect callback, so we
+    // route through state and throw below.
+    if (res.status === 404) {
+      setNotFoundFlag(true);
+      return;
+    }
     const data = await res.json();
     setClubName(data.club?.name ?? "");
     setRooms(data.rooms ?? []);
@@ -38,6 +48,8 @@ export default function ClubPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, [load]);
+
+  if (notFoundFlag) notFound();
 
   async function create(e: React.FormEvent) {
     e.preventDefault();

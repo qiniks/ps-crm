@@ -1,9 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-const PUBLIC_PATH_PREFIXES = ["/login", "/auth"];
+// /set-password must be reachable without a server-visible session: invite and
+// magic-link emails use Supabase's implicit flow (tokens in the URL fragment,
+// which never reaches the server), so the client-side Supabase library on that
+// page is what turns the fragment into a real session via detectSessionInUrl.
+const PUBLIC_PATH_PREFIXES = ["/login", "/auth", "/set-password"];
 
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
