@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireMembership } from "@/lib/auth/requireMembership";
 
 // POST /api/rooms/[roomId]/stations — add a console to the room.
 // body: { name, type?, posX?, posY? }
@@ -10,6 +11,9 @@ export async function POST(
   const { roomId } = await params;
   const room = await prisma.room.findUnique({ where: { id: roomId } });
   if (!room) return NextResponse.json({ error: "Room not found" }, { status: 404 });
+
+  const auth = await requireMembership(room.tenantId);
+  if (!auth.ok) return auth.response;
 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const name = String(body.name ?? "").trim();

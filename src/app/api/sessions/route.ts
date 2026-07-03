@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { fixedPrice, tariffHours, type TariffKind } from "@/lib/tariffs";
+import { requireMembership } from "@/lib/auth/requireMembership";
 
 const VALID: TariffKind[] = ["HOUR_1", "HOUR_3", "HOUR_5", "OPEN"];
 
@@ -25,14 +26,17 @@ export async function POST(req: NextRequest) {
     include: { room: true },
   });
   if (!station) return NextResponse.json({ error: "Station not found" }, { status: 404 });
+
+  const auth = await requireMembership(station.tenantId);
+  if (!auth.ok) return auth.response;
+
   if (station.status === "BUSY") {
     return NextResponse.json({ error: "Station is already busy" }, { status: 409 });
   }
 
   const now = new Date();
   const hours = tariffHours(body.tariffKind);
-  const plannedEndAt =
-    hours != null ? new Date(now.getTime() + hours * 3_600_000) : null;
+  const plannedEndAt = hours != null ? new Date(now.getTime() + hours * 3_600_000) : null;
   // Fixed tariffs are charged up-front; OPEN is billed on stop.
   const cost = fixedPrice(station.room, body.tariffKind) ?? 0;
 

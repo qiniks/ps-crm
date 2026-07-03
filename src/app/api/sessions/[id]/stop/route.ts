@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { openCost } from "@/lib/tariffs";
+import { requireMembership } from "@/lib/auth/requireMembership";
 
 // POST /api/sessions/[id]/stop — finish a session and finalize the bill.
 export async function POST(
@@ -14,12 +15,15 @@ export async function POST(
   });
 
   if (!session) return NextResponse.json({ error: "Session not found" }, { status: 404 });
+
+  const auth = await requireMembership(session.tenantId);
+  if (!auth.ok) return auth.response;
+
   if (session.status === "FINISHED") {
     return NextResponse.json({ error: "Session already finished" }, { status: 409 });
   }
 
   const endedAt = new Date();
-  // OPEN tariff is billed by elapsed time; fixed tariffs keep their up-front cost.
   const cost =
     session.tariffKind === "OPEN"
       ? openCost(session.startedAt, endedAt, session.station.room.openHourlyRate)

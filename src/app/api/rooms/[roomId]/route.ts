@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireMembership } from "@/lib/auth/requireMembership";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,9 @@ export async function GET(
   });
 
   if (!room) return NextResponse.json({ error: "Room not found" }, { status: 404 });
+
+  const auth = await requireMembership(room.tenantId);
+  if (!auth.ok) return auth.response;
 
   return NextResponse.json({
     id: room.id,

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireMembership } from "@/lib/auth/requireMembership";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +10,9 @@ export async function GET(
   { params }: { params: Promise<{ clubId: string }> }
 ) {
   const { clubId } = await params;
+  const auth = await requireMembership(clubId);
+  if (!auth.ok) return auth.response;
+
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
 

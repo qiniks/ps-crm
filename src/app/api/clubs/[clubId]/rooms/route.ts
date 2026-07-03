@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireMembership } from "@/lib/auth/requireMembership";
 
 export const dynamic = "force-dynamic";
 
@@ -9,9 +10,10 @@ export async function GET(
   { params }: { params: Promise<{ clubId: string }> }
 ) {
   const { clubId } = await params;
-  const club = await prisma.tenant.findUnique({ where: { id: clubId } });
-  if (!club) return NextResponse.json({ error: "Club not found" }, { status: 404 });
+  const auth = await requireMembership(clubId);
+  if (!auth.ok) return auth.response;
 
+  const club = await prisma.tenant.findUniqueOrThrow({ where: { id: clubId } });
   const rooms = await prisma.room.findMany({
     where: { tenantId: clubId },
     orderBy: { createdAt: "asc" },
@@ -38,6 +40,9 @@ export async function POST(
   { params }: { params: Promise<{ clubId: string }> }
 ) {
   const { clubId } = await params;
+  const auth = await requireMembership(clubId);
+  if (!auth.ok) return auth.response;
+
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const name = String(body.name ?? "").trim();
   if (!name) return NextResponse.json({ error: "name is required" }, { status: 400 });
