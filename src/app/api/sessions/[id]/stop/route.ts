@@ -5,10 +5,11 @@ import { openCost } from "@/lib/tariffs";
 // POST /api/sessions/[id]/stop — finish a session and finalize the bill.
 export async function POST(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const session = await prisma.session.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: { station: { include: { room: true } } },
   });
 

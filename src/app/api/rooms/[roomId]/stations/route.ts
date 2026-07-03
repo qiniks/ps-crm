@@ -5,9 +5,10 @@ import { prisma } from "@/lib/prisma";
 // body: { name, type?, posX?, posY? }
 export async function POST(
   req: NextRequest,
-  { params }: { params: { roomId: string } }
+  { params }: { params: Promise<{ roomId: string }> }
 ) {
-  const room = await prisma.room.findUnique({ where: { id: params.roomId } });
+  const { roomId } = await params;
+  const room = await prisma.room.findUnique({ where: { id: roomId } });
   if (!room) return NextResponse.json({ error: "Room not found" }, { status: 404 });
 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;

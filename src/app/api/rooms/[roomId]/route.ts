@@ -6,10 +6,11 @@ export const dynamic = "force-dynamic";
 // GET /api/rooms/[roomId] — room details, pricing, stations and their active session.
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { roomId: string } }
+  { params }: { params: Promise<{ roomId: string }> }
 ) {
+  const { roomId } = await params;
   const room = await prisma.room.findUnique({
-    where: { id: params.roomId },
+    where: { id: roomId },
     include: {
       tenant: true,
       stations: {

@@ -6,14 +6,15 @@ export const dynamic = "force-dynamic";
 // GET /api/clubs/[clubId]/reports — today's revenue summary + recent sessions.
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { clubId: string } }
+  { params }: { params: Promise<{ clubId: string }> }
 ) {
+  const { clubId } = await params;
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
 
   const todays = await prisma.session.findMany({
     where: {
-      tenantId: params.clubId,
+      tenantId: clubId,
       status: "FINISHED",
       endedAt: { gte: startOfDay },
     },
@@ -24,7 +25,7 @@ export async function GET(
   const avgCheck = sessionsToday ? Math.round(revenueToday / sessionsToday) : 0;
 
   const recent = await prisma.session.findMany({
-    where: { tenantId: params.clubId, status: "FINISHED" },
+    where: { tenantId: clubId, status: "FINISHED" },
     include: { station: true, customer: true },
     orderBy: { endedAt: "desc" },
     take: 20,

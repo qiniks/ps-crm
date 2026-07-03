@@ -5,8 +5,9 @@ import { prisma } from "@/lib/prisma";
 // body: { positions: { id: string, posX: number, posY: number }[] }
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { roomId: string } }
+  { params }: { params: Promise<{ roomId: string }> }
 ) {
+  const { roomId } = await params;
   const body = (await req.json().catch(() => ({}))) as {
     positions?: { id: string; posX: number; posY: number }[];
   };
@@ -18,7 +19,7 @@ export async function PUT(
   await prisma.$transaction(
     positions.map((p) =>
       prisma.station.updateMany({
-        where: { id: p.id, roomId: params.roomId },
+        where: { id: p.id, roomId },
         data: { posX: clamp(p.posX), posY: clamp(p.posY) },
       })
     )

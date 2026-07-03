@@ -6,13 +6,14 @@ export const dynamic = "force-dynamic";
 // GET /api/clubs/[clubId]/rooms — rooms of a club with station counts.
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { clubId: string } }
+  { params }: { params: Promise<{ clubId: string }> }
 ) {
-  const club = await prisma.tenant.findUnique({ where: { id: params.clubId } });
+  const { clubId } = await params;
+  const club = await prisma.tenant.findUnique({ where: { id: clubId } });
   if (!club) return NextResponse.json({ error: "Club not found" }, { status: 404 });
 
   const rooms = await prisma.room.findMany({
-    where: { tenantId: params.clubId },
+    where: { tenantId: clubId },
     orderBy: { createdAt: "asc" },
     include: { _count: { select: { stations: true } } },
   });
@@ -34,8 +35,9 @@ export async function GET(
 // POST /api/clubs/[clubId]/rooms — create a room with per-room pricing.
 export async function POST(
   req: NextRequest,
-  { params }: { params: { clubId: string } }
+  { params }: { params: Promise<{ clubId: string }> }
 ) {
+  const { clubId } = await params;
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const name = String(body.name ?? "").trim();
   if (!name) return NextResponse.json({ error: "name is required" }, { status: 400 });
@@ -44,7 +46,7 @@ export async function POST(
 
   const room = await prisma.room.create({
     data: {
-      tenantId: params.clubId,
+      tenantId: clubId,
       name,
       price1h: num(body.price1h),
       price3h: num(body.price3h),
