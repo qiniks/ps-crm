@@ -34,7 +34,7 @@ export const dictionaries = {
     "clubs.subtitle": "Выберите клуб или создайте новый",
     "clubs.name": "Название клуба",
     "clubs.create": "Создать клуб",
-    "clubs.empty": "Клубов пока нет — создайте первый",
+    "clubs.empty": "У вас пока нет клубов",
     "clubs.roomsCount": "залов",
 
     "club.rooms": "Залы",
@@ -135,7 +135,7 @@ export const dictionaries = {
     "clubs.subtitle": "Pick a club or create a new one",
     "clubs.name": "Club name",
     "clubs.create": "Create club",
-    "clubs.empty": "No clubs yet — create the first one",
+    "clubs.empty": "You don't have any clubs yet",
     "clubs.roomsCount": "rooms",
 
     "club.rooms": "Rooms",
