@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { resolveSafeRedirect } from "@/lib/auth/resolveSafeRedirect";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 // GET /auth/callback — lands here from the invite email's link. Exchanges the
@@ -6,30 +7,17 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
   const rawNext = request.nextUrl.searchParams.get("next");
-  // Only honor `next` when it resolves to the same origin as this request.
-  // `next` is attacker-influenceable via a crafted invite link, and string
-  // prefix checks (e.g. rejecting "//") are incomplete: WHATWG URL parsing
-  // (the same parser browsers use) treats a leading backslash as equivalent
-  // to a forward slash at the host boundary, so "/\evil.com" would still
-  // resolve off-origin despite passing a "starts with /" check. Resolving
-  // against the request's own base URL and comparing origins closes the
-  // whole vulnerability class instead of enumerating escape sequences.
-  let next = "/set-password";
-  if (rawNext) {
-    try {
-      const resolved = new URL(rawNext, request.url);
-      if (resolved.origin === new URL(request.url).origin) {
-        next = resolved.pathname + resolved.search + resolved.hash;
-      }
-    } catch {
-      // Malformed `next` value — fall back to /set-password.
-    }
-  }
+  // `next` is attacker-influenceable via a crafted invite link. Delegate to
+  // resolveSafeRedirect, which returns a validated URL object directly — do
+  // NOT convert it back to a string (e.g. pathname + search + hash) and
+  // re-parse it later, since that reopens the same vulnerability class (see
+  // resolveSafeRedirect's doc comment for why).
+  const next = resolveSafeRedirect(rawNext, request.url, "/set-password");
 
   if (code) {
     const supabase = await createSupabaseServerClient();
     await supabase.auth.exchangeCodeForSession(code);
   }
 
-  return NextResponse.redirect(new URL(next, request.url));
+  return NextResponse.redirect(next);
 }
