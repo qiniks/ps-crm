@@ -16,6 +16,7 @@ export const dictionaries = {
     "nav.customers": "Клиенты",
     "nav.reports": "Отчёты",
     "nav.back": "Назад",
+    "nav.signOut": "Выйти",
 
     "lang.switch": "Язык",
     "common.currency": "сом",
@@ -117,6 +118,7 @@ export const dictionaries = {
     "nav.customers": "Customers",
     "nav.reports": "Reports",
     "nav.back": "Back",
+    "nav.signOut": "Sign out",
 
     "lang.switch": "Language",
     "common.currency": "KGS",

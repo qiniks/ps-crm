@@ -1,13 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
 import { LanguageSwitcher } from "./LanguageSwitcher";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { TranslationKey } from "@/lib/i18n/dictionaries";
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { t } = useI18n();
 
   // Detect the current club from the URL: /clubs/[clubId]/...
@@ -21,6 +23,13 @@ export function Sidebar() {
         { href: `/clubs/${clubId}/reports`, key: "nav.reports", icon: "📊" },
       ]
     : [{ href: "/clubs", key: "nav.clubs", icon: "🎮" }];
+
+  async function signOut() {
+    const supabase = createSupabaseBrowserClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
+  }
 
   return (
     <aside className="flex w-60 shrink-0 flex-col border-r border-slate-800 bg-slate-900 p-4">
@@ -58,8 +67,14 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="mt-4">
+      <div className="mt-4 flex flex-col gap-2">
         <LanguageSwitcher />
+        <button
+          onClick={signOut}
+          className="rounded-lg px-3 py-1.5 text-left text-xs font-medium text-slate-400 hover:text-white"
+        >
+          {t("nav.signOut")}
+        </button>
       </div>
     </aside>
   );
