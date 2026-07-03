@@ -432,16 +432,18 @@ git commit -m "Add getSessionUser and requireMembership route guard"
 
 ---
 
-### Task 7: `proxy.ts` — the global session gate
+### Task 7: `middleware.ts` — the global session gate
+
+**Correction (found during Task 14's end-to-end verification, independently reproduced twice from clean environments — not in the original plan):** this section originally named the file `proxy.ts` with an exported `proxy()` function, citing "Next 16 renamed the convention (see the dependency-upgrade plan's research notes)." That citation doesn't exist anywhere in the dependency-upgrade plan — it was a fabricated justification. Next.js 16.2.10's own source does deprecate `middleware.ts` in favor of `proxy.ts` on paper, but empirically, in this exact installed version, `proxy.ts`/`export function proxy()` never registers as an entrypoint at all — silently, with no warning or error, verified via `.next/server/middleware-manifest.json` staying empty. This is very likely a real defect in this specific Next.js release's build pipeline, not a misunderstanding. Use `middleware.ts` with `export function middleware()` instead — the original design spec (`docs/superpowers/specs/2026-07-02-supabase-auth-design.md`) named it this way from the start.
 
 **Files:**
-- Create: `proxy.ts` (project root)
+- Create: `middleware.ts` (project root)
 
-Named `proxy.ts` with an exported `proxy()` function, not `middleware.ts`/`middleware()` — Next 16 renamed the convention (see the dependency-upgrade plan's research notes). This is the layer that can't be forgotten on a new route: it runs on every request and redirects to `/login` if there's no session, before any page or API route code executes.
+This is the layer that can't be forgotten on a new route: it runs on every request and redirects to `/login` if there's no session, before any page or API route code executes.
 
 - [ ] **Step 1: Implement**
 
-Create `proxy.ts`:
+Create `middleware.ts`:
 
 ```ts
 import { NextResponse, type NextRequest } from "next/server";
@@ -492,8 +494,8 @@ export const config = {
 - [ ] **Step 2: Commit**
 
 ```bash
-git add proxy.ts
-git commit -m "Add proxy.ts session gate (redirects unauthenticated requests to /login)"
+git add middleware.ts
+git commit -m "Add middleware.ts session gate (redirects unauthenticated requests to /login)"
 ```
 
 ---
