@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
@@ -19,16 +19,15 @@ export default function RoomViewPage() {
   const [booking, setBooking] = useState<StationDTO | null>(null);
   const [stopping, setStopping] = useState<StationDTO | null>(null);
 
-  const load = useCallback(async () => {
-    const res = await fetch(`/api/rooms/${roomId}`, { cache: "no-store" });
-    if (res.ok) setRoom(await res.json());
-  }, [roomId]);
-
   useEffect(() => {
+    async function load() {
+      const res = await fetch(`/api/rooms/${roomId}`, { cache: "no-store" });
+      if (res.ok) setRoom(await res.json());
+    }
     load();
     const id = setInterval(load, 15000);
     return () => clearInterval(id);
-  }, [load]);
+  }, [roomId]);
 
   function onSelect(s: StationDTO) {
     if (s.status === "BUSY") setStopping(s);
@@ -37,9 +36,13 @@ export default function RoomViewPage() {
 
   async function stopSession() {
     if (!stopping?.activeSession) return;
-    await fetch(`/api/sessions/${stopping.activeSession.id}/stop`, { method: "POST" });
-    setStopping(null);
-    load();
+    const res = await fetch(`/api/sessions/${stopping.activeSession.id}/stop`, { method: "POST" });
+    if (res.ok) {
+      setStopping(null);
+      // Reload room to refresh station status
+      const res = await fetch(`/api/rooms/${roomId}`, { cache: "no-store" });
+      if (res.ok) setRoom(await res.json());
+    }
   }
 
   if (!room) return <div className="text-slate-400">{t("common.loading")}</div>;

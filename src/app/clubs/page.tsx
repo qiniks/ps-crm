@@ -1,10 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
 
 type Club = { id: string; name: string; roomCount: number };
+
+async function fetchClubs() {
+  const res = await fetch("/api/clubs", { cache: "no-store" });
+  if (!res.ok) throw new Error(`GET /api/clubs failed: ${res.status}`);
+  return await res.json();
+}
 
 export default function ClubsPage() {
   const { t } = useI18n();
@@ -13,35 +19,36 @@ export default function ClubsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(false);
-    try {
-      const res = await fetch("/api/clubs", { cache: "no-store" });
-      if (!res.ok) throw new Error(`GET /api/clubs failed: ${res.status}`);
-      setClubs(await res.json());
-    } catch (err) {
-      console.error(err);
-      setError(true);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    load();
-  }, [load]);
+    async function loadClubs() {
+      setLoading(true);
+      setError(false);
+      try {
+        const data = await fetchClubs();
+        setClubs(data);
+      } catch (err) {
+        console.error(err);
+        setError(true);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadClubs();
+  }, []);
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
-    await fetch("/api/clubs", {
+    const res = await fetch("/api/clubs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name }),
     });
-    setName("");
-    load();
+    if (res.ok) {
+      const newClub = await res.json();
+      setClubs((prev) => [...prev, newClub]);
+      setName("");
+    }
   }
 
   return (

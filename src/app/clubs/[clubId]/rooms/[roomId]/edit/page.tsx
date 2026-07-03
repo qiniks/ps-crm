@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
@@ -30,25 +30,24 @@ export default function RoomEditPage() {
   // Drag bookkeeping (refs so we don't re-render per mousemove).
   const drag = useRef<{ id: string; moved: boolean } | null>(null);
 
-  const load = useCallback(async () => {
-    const res = await fetch(`/api/rooms/${roomId}`, { cache: "no-store" });
-    const data = await res.json();
-    setRoomName(data.name);
-    setStations(
-      data.stations.map((s: EditStation) => ({
-        id: s.id,
-        name: s.name,
-        type: s.type,
-        status: s.status,
-        posX: s.posX,
-        posY: s.posY,
-      }))
-    );
-  }, [roomId]);
-
   useEffect(() => {
+    async function load() {
+      const res = await fetch(`/api/rooms/${roomId}`, { cache: "no-store" });
+      const data = await res.json();
+      setRoomName(data.name);
+      setStations(
+        data.stations.map((s: EditStation) => ({
+          id: s.id,
+          name: s.name,
+          type: s.type,
+          status: s.status,
+          posX: s.posX,
+          posY: s.posY,
+        }))
+      );
+    }
     load();
-  }, [load]);
+  }, [roomId]);
 
   function pointFromEvent(e: React.PointerEvent) {
     const rect = canvasRef.current!.getBoundingClientRect();

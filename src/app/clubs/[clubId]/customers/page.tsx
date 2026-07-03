@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
 import { formatMoney } from "@/lib/format";
@@ -20,26 +20,28 @@ export default function CustomersPage() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
 
-  const load = useCallback(async () => {
-    const res = await fetch(`/api/clubs/${clubId}/customers`, { cache: "no-store" });
-    setCustomers(await res.json());
-  }, [clubId]);
-
   useEffect(() => {
+    async function load() {
+      const res = await fetch(`/api/clubs/${clubId}/customers`, { cache: "no-store" });
+      setCustomers(await res.json());
+    }
     load();
-  }, [load]);
+  }, [clubId]);
 
   async function add(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
-    await fetch(`/api/clubs/${clubId}/customers`, {
+    const res = await fetch(`/api/clubs/${clubId}/customers`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, phone }),
     });
-    setName("");
-    setPhone("");
-    load();
+    if (res.ok) {
+      const newCustomer = await res.json();
+      setCustomers((prev) => [...prev, newCustomer]);
+      setName("");
+      setPhone("");
+    }
   }
 
   return (

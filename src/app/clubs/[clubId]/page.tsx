@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
@@ -26,28 +26,30 @@ export default function ClubPage() {
   const [form, setForm] = useState(EMPTY);
   const [showForm, setShowForm] = useState(false);
 
-  const load = useCallback(async () => {
-    const res = await fetch(`/api/clubs/${clubId}/rooms`, { cache: "no-store" });
-    const data = await res.json();
-    setClubName(data.club?.name ?? "");
-    setRooms(data.rooms ?? []);
-  }, [clubId]);
-
   useEffect(() => {
+    async function load() {
+      const res = await fetch(`/api/clubs/${clubId}/rooms`, { cache: "no-store" });
+      const data = await res.json();
+      setClubName(data.club?.name ?? "");
+      setRooms(data.rooms ?? []);
+    }
     load();
-  }, [load]);
+  }, [clubId]);
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
     if (!form.name.trim()) return;
-    await fetch(`/api/clubs/${clubId}/rooms`, {
+    const res = await fetch(`/api/clubs/${clubId}/rooms`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
     });
-    setForm(EMPTY);
-    setShowForm(false);
-    load();
+    if (res.ok) {
+      const newRoom = await res.json();
+      setRooms((prev) => [...prev, newRoom]);
+      setForm(EMPTY);
+      setShowForm(false);
+    }
   }
 
   const set = (k: keyof typeof EMPTY) => (e: React.ChangeEvent<HTMLInputElement>) =>

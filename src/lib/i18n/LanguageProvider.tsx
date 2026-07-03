@@ -18,14 +18,20 @@ const LanguageContext = createContext<Ctx | null>(null);
 
 const STORAGE_KEY = "ps-crm.locale";
 
-export function LanguageProvider({ children }: { children: React.ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>(DEFAULT_LOCALE);
+function getSavedLocale(): Locale {
+  if (typeof window === "undefined") return DEFAULT_LOCALE;
+  const saved = localStorage.getItem(STORAGE_KEY) as Locale | null;
+  if (saved && (saved === "ru" || saved === "en")) return saved;
+  return DEFAULT_LOCALE;
+}
 
-  // Restore saved choice on mount.
+export function LanguageProvider({ children }: { children: React.ReactNode }) {
+  const [locale, setLocaleState] = useState<Locale>(getSavedLocale);
+
+  // Update document language when locale changes
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY) as Locale | null;
-    if (saved && (saved === "ru" || saved === "en")) setLocaleState(saved);
-  }, []);
+    document.documentElement.lang = locale;
+  }, [locale]);
 
   const setLocale = useCallback((l: Locale) => {
     setLocaleState(l);
