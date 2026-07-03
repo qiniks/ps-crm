@@ -6,7 +6,9 @@
 
 **Architecture:** This is a verification-driven workstream, not a TDD one — there's no new application behavior being specified, so "red/green" here means "does it typecheck, build, and does the existing Vitest suite (from the test-infrastructure plan) stay green," not new failing tests. Each task ends with a concrete verification command and expected output.
 
-**Tech Stack:** next@16.2.10, react@19.2.7, react-dom@19.2.7, typescript@6.0.3, eslint@10.6.0, eslint-config-next@16.2.10, @prisma/client@7.8.0, prisma@7.8.0, @prisma/adapter-pg@7.8.0, pg@8.22.0, @types/pg@8.20.0, dotenv@17.4.2.
+**Tech Stack:** next@16.2.10, react@19.2.7, react-dom@19.2.7, typescript@6.0.3, eslint@9.39.4, eslint-config-next@16.2.10, @prisma/client@7.8.0, prisma@7.8.0, @prisma/adapter-pg@7.8.0, pg@8.22.0, @types/pg@8.20.0, dotenv@17.4.2.
+
+**Correction (found during Task 1 execution, not in the original plan):** this section originally targeted `eslint@10.6.0`. That version is not actually installable against `eslint-config-next@16.2.10` — its `typescript-eslint@^8.46.0` dependency has a peer range of `eslint: "^8.57.0 || ^9.0.0"`, which does not accept 10.x. Task 1's Next.js upgrade codemod independently discovered this and installed `eslint@9.39.4` instead, which is correct. Task 4 below is rewritten to match this reality — see its note.
 
 **Prerequisites:**
 - `2026-07-02-test-infrastructure.md` must be complete (`npm test` works) — Task 6 here relies on it.
@@ -499,67 +501,65 @@ git commit -m "Bump TypeScript to 6.0.3 and @types/node to 26.1.0"
 
 ---
 
-### Task 4: Set up ESLint (flat config) — replaces the removed `next lint`
+### Task 4: Finish the ESLint setup Task 1's codemod already started
 
-**Context:** `next lint` is fully removed in Next 16. This repo never had a working lint setup before this (no `eslint` or `eslint-config-next` in `package.json`, despite the `"lint": "next lint"` script) — this task creates one from scratch using Next's current flat-config pattern, not a migration from a prior config.
+**Context (rewritten after Task 1 ran — see the tech-stack correction note above):** this task originally planned to set up ESLint from scratch, on the assumption Task 1's `next-lint-to-eslint-cli` codemod would find "nothing to migrate" (the repo never had a working `next lint` setup — no `eslint`/`eslint-config-next` were installed despite the script existing). In practice, that codemod *did* find something to do: it already created `eslint.config.mjs`, installed `eslint@9.39.4` and `eslint-config-next@16.2.10`, and changed the `"lint"` script to `"eslint ."`. Re-doing that work here would just be a no-op diff. This task is now: fix the one real gap in what the codemod produced, then run it.
 
 **Files:**
-- Create: `eslint.config.mjs`
-- Modify: `package.json`
+- Modify: `eslint.config.mjs`
 
-- [ ] **Step 1: Install**
+- [ ] **Step 1: Confirm the codemod's output is what you expect**
 
-Run:
-```bash
-npm install -D eslint@10.6.0 eslint-config-next@16.2.10
-```
-
-- [ ] **Step 2: Create the flat config**
-
-Create `eslint.config.mjs`:
-
+Read `eslint.config.mjs` — it should already look like this:
 ```js
-import { defineConfig, globalIgnores } from "eslint/config";
-import nextVitals from "eslint-config-next/core-web-vitals";
-import nextTs from "eslint-config-next/typescript";
+import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
+import nextTypescript from "eslint-config-next/typescript";
 
-const eslintConfig = defineConfig([
-  ...nextVitals,
-  ...nextTs,
-  globalIgnores([
-    ".next/**",
-    "out/**",
-    "build/**",
-    "next-env.d.ts",
-    "src/generated/**", // Prisma-generated client output (added in Task 5 of this plan)
-  ]),
-]);
+const eslintConfig = [
+  ...nextCoreWebVitals,
+  ...nextTypescript,
+  {
+    ignores: [
+      "node_modules/**",
+      ".next/**",
+      "out/**",
+      "build/**",
+      "next-env.d.ts",
+    ],
+  },
+];
 
 export default eslintConfig;
 ```
+And `package.json`'s `"lint"` script should already be `"eslint ."`. If either doesn't match (i.e. this machine's state has diverged from what Task 1 produced), stop and report — don't silently redo Task 1's work.
 
-- [ ] **Step 3: Replace the lint script**
+- [ ] **Step 2: Add the one missing ignore entry**
 
-Modify `package.json` — change:
-```json
-"lint": "next lint"
+The codemod's `ignores` list has no entry for Prisma's generated client output. Task 5 of this same plan (Prisma 7 migration) is about to start generating code into `src/generated/`, which ESLint should never lint. Modify `eslint.config.mjs`'s `ignores` array — add `"src/generated/**"`:
+```js
+    ignores: [
+      "node_modules/**",
+      ".next/**",
+      "out/**",
+      "build/**",
+      "next-env.d.ts",
+      "src/generated/**",
+    ],
 ```
-to:
-```json
-"lint": "eslint ."
-```
 
-- [ ] **Step 4: Run it**
+- [ ] **Step 3: Run it**
 
 Run: `npm run lint`
 Expected: ESLint runs against the project. Fix any real errors it reports (e.g. unused variables, hook dependency warnings) — do not disable a rule just to silence a genuine issue it caught. If it reports zero errors, proceed directly.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-git add eslint.config.mjs package.json
-git commit -m "Add ESLint flat config with eslint-config-next (replaces removed next lint)"
+git add eslint.config.mjs
+git commit -m "Add src/generated/** to ESLint ignores ahead of the Prisma 7 migration"
 ```
+
+If Step 3 required fixing real lint errors elsewhere, stage those files too and describe them in the commit message instead of using the message above verbatim.
 
 ---
 
