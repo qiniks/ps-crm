@@ -32,7 +32,7 @@ export const dictionaries = {
     "common.confirm": "Подтвердить",
 
     "clubs.title": "Игровые клубы",
-    "clubs.subtitle": "Выберите клуб или создайте новый",
+    "clubs.subtitle": "Выберите клуб",
     "clubs.name": "Название клуба",
     "clubs.create": "Создать клуб",
     "clubs.empty": "У вас пока нет клубов",
@@ -134,7 +134,7 @@ export const dictionaries = {
     "common.confirm": "Confirm",
 
     "clubs.title": "Gaming clubs",
-    "clubs.subtitle": "Pick a club or create a new one",
+    "clubs.subtitle": "Pick a club",
     "clubs.name": "Club name",
     "clubs.create": "Create club",
     "clubs.empty": "You don't have any clubs yet",

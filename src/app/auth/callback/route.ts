@@ -5,7 +5,15 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 // one-time code for a real session, then hands off to /set-password.
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
-  const next = request.nextUrl.searchParams.get("next") ?? "/set-password";
+  const rawNext = request.nextUrl.searchParams.get("next");
+  // Only honor `next` when it's a genuine relative path. Without this check,
+  // `next` (attacker-influenceable via a crafted invite link) could be an
+  // absolute URL or a protocol-relative "//evil.com" and cause an open
+  // redirect off-site.
+  const next =
+    rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//")
+      ? rawNext
+      : "/set-password";
 
   if (code) {
     const supabase = await createSupabaseServerClient();
