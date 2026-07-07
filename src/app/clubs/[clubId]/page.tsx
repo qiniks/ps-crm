@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { notFound, useParams } from "next/navigation";
+import { useParams } from "next/navigation";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
 import { formatMoney } from "@/lib/format";
 
@@ -16,56 +17,58 @@ type Room = {
   stationCount: number;
 };
 
+type RoomsResponse = { club: { name: string }; rooms: Room[] };
+
 const EMPTY = { name: "", price1h: "", price3h: "", price5h: "", openHourlyRate: "" };
+
+async function fetchRooms(clubId: string): Promise<RoomsResponse> {
+  const res = await fetch(`/api/clubs/${clubId}/rooms`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`GET rooms failed: ${res.status}`);
+  return res.json();
+}
+
+async function createRoom(clubId: string, values: typeof EMPTY) {
+  const res = await fetch(`/api/clubs/${clubId}/rooms`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(values),
+  });
+  if (!res.ok) throw new Error(`POST room failed: ${res.status}`);
+  return res.json();
+}
 
 export default function ClubPage() {
   const { t } = useI18n();
   const { clubId } = useParams<{ clubId: string }>();
-  const [clubName, setClubName] = useState("");
-  const [rooms, setRooms] = useState<Room[]>([]);
+  const queryClient = useQueryClient();
   const [form, setForm] = useState(EMPTY);
   const [showForm, setShowForm] = useState(false);
-  const [notFoundFlag, setNotFoundFlag] = useState(false);
 
-  const load = useCallback(async () => {
-    const res = await fetch(`/api/clubs/${clubId}/rooms`, { cache: "no-store" });
-    // requireMembership returns 404 (not 403) for a club that exists but the
-    // signed-in user isn't a member of, so this also covers the cross-tenant
-    // case, not just a truly nonexistent clubId. notFound() only works when
-    // thrown during render, not from inside an async effect callback, so we
-    // route through state and throw below.
-    if (res.status === 404) {
-      setNotFoundFlag(true);
-      return;
-    }
-    const data = await res.json();
-    setClubName(data.club?.name ?? "");
-    setRooms(data.rooms ?? []);
-  }, [clubId]);
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["rooms", clubId],
+    queryFn: () => fetchRooms(clubId),
+  });
 
-  useEffect(() => {
-    // TODO(2026-07-02-tanstack-query-migration.md): this fetch pattern is replaced by useQuery in that plan; suppressing the new rule here rather than hand-restructuring ahead of it.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load();
-  }, [load]);
+  const createRoomMutation = useMutation({
+    mutationFn: (values: typeof EMPTY) => createRoom(clubId, values),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["rooms", clubId] });
+      setForm(EMPTY);
+      setShowForm(false);
+    },
+  });
 
-  if (notFoundFlag) notFound();
-
-  async function create(e: React.FormEvent) {
+  function create(e: React.FormEvent) {
     e.preventDefault();
     if (!form.name.trim()) return;
-    await fetch(`/api/clubs/${clubId}/rooms`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    setForm(EMPTY);
-    setShowForm(false);
-    load();
+    createRoomMutation.mutate(form);
   }
 
   const set = (k: keyof typeof EMPTY) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const clubName = data?.club.name ?? "";
+  const rooms = data?.rooms ?? [];
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -107,7 +110,10 @@ export default function ClubPage() {
             />
           </div>
           <div className="mt-4 flex gap-2">
-            <button className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-dark">
+            <button
+              disabled={createRoomMutation.isPending}
+              className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-dark disabled:opacity-50"
+            >
               {t("common.create")}
             </button>
             <button
@@ -121,7 +127,13 @@ export default function ClubPage() {
         </form>
       )}
 
-      {rooms.length === 0 ? (
+      {isLoading ? (
+        <div className="text-slate-400">{t("common.loading")}</div>
+      ) : isError ? (
+        <div className="rounded-xl border border-dashed border-red-800 p-10 text-center text-red-400">
+          {t("common.error")}
+        </div>
+      ) : rooms.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-700 p-10 text-center text-slate-500">
           {t("club.noRooms")}
         </div>
