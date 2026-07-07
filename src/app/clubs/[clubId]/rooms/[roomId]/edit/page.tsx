@@ -1,25 +1,66 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
 
-type EditStation = {
-  id: string;
-  name: string;
-  type: string;
-  status: string;
-  posX: number;
-  posY: number;
-};
+type EditStation = { id: string; name: string; type: string; status: string; posX: number; posY: number };
+
+type RoomEditData = { name: string; stations: EditStation[] };
+
+async function fetchRoom(roomId: string): Promise<RoomEditData> {
+  const res = await fetch(`/api/rooms/${roomId}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`GET room failed: ${res.status}`);
+  return res.json();
+}
+
+async function addStationRequest(
+  roomId: string,
+  values: { name: string; type: string; posX: number; posY: number }
+) {
+  const res = await fetch(`/api/rooms/${roomId}/stations`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(values),
+  });
+  if (!res.ok) throw new Error(`POST station failed: ${res.status}`);
+  return res.json();
+}
+
+async function patchStationRequest(stationId: string, patch: Partial<EditStation>) {
+  const res = await fetch(`/api/stations/${stationId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) throw new Error(`PATCH station failed: ${res.status}`);
+  return res.json();
+}
+
+async function deleteStationRequest(stationId: string) {
+  const res = await fetch(`/api/stations/${stationId}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`DELETE station failed: ${res.status}`);
+}
+
+async function saveLayoutRequest(roomId: string, positions: { id: string; posX: number; posY: number }[]) {
+  const res = await fetch(`/api/rooms/${roomId}/layout`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ positions }),
+  });
+  if (!res.ok) throw new Error(`PUT layout failed: ${res.status}`);
+  return res.json();
+}
 
 export default function RoomEditPage() {
   const { t } = useI18n();
   const { clubId, roomId } = useParams<{ clubId: string; roomId: string }>();
   const canvasRef = useRef<HTMLDivElement>(null);
 
-  const [roomName, setRoomName] = useState("");
+  const { data } = useQuery({ queryKey: ["room-edit", roomId], queryFn: () => fetchRoom(roomId) });
+
   const [stations, setStations] = useState<EditStation[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
@@ -27,30 +68,19 @@ export default function RoomEditPage() {
   const [newName, setNewName] = useState("");
   const [newType, setNewType] = useState("PS5");
 
+  // Seed local editable state from the query once it loads. Deliberately not
+  // re-synced on every refetch — during a drag, `stations` is client-
+  // authoritative (see the mutations below), and this query has no polling
+  // and no invalidation, so this effect only ever fires once per room visit.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time seed from server data into client-authoritative drag state; see comment above.
+    if (data) setStations(data.stations);
+  }, [data]);
+
+  const roomName = data?.name ?? "";
+
   // Drag bookkeeping (refs so we don't re-render per mousemove).
   const drag = useRef<{ id: string; moved: boolean } | null>(null);
-
-  const load = useCallback(async () => {
-    const res = await fetch(`/api/rooms/${roomId}`, { cache: "no-store" });
-    const data = await res.json();
-    setRoomName(data.name);
-    setStations(
-      data.stations.map((s: EditStation) => ({
-        id: s.id,
-        name: s.name,
-        type: s.type,
-        status: s.status,
-        posX: s.posX,
-        posY: s.posY,
-      }))
-    );
-  }, [roomId]);
-
-  useEffect(() => {
-    // TODO(2026-07-02-tanstack-query-migration.md): this fetch pattern is replaced by useQuery in that plan; suppressing the new rule here rather than hand-restructuring ahead of it.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load();
-  }, [load]);
 
   function pointFromEvent(e: React.PointerEvent) {
     const rect = canvasRef.current!.getBoundingClientRect();
@@ -82,48 +112,61 @@ export default function RoomEditPage() {
     drag.current = null;
   }
 
-  async function addStation(e: React.FormEvent) {
+  const addStationMutation = useMutation({
+    mutationFn: (values: { name: string; type: string; posX: number; posY: number }) =>
+      addStationRequest(roomId, values),
+    onSuccess: (created: EditStation) => {
+      setStations((prev) => [...prev, created]);
+      setNewName("");
+      setSelectedId(created.id);
+    },
+  });
+
+  function addStation(e: React.FormEvent) {
     e.preventDefault();
     if (!newName.trim()) return;
-    const res = await fetch(`/api/rooms/${roomId}/stations`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newName, type: newType, posX: 50, posY: 50 }),
-    });
-    const created = await res.json();
-    setStations((prev) => [...prev, created]);
-    setNewName("");
-    setSelectedId(created.id);
+    addStationMutation.mutate({ name: newName, type: newType, posX: 50, posY: 50 });
   }
 
-  async function patchSelected(patch: Partial<EditStation>) {
+  const patchStationMutation = useMutation({
+    mutationFn: ({ stationId, patch }: { stationId: string; patch: Partial<EditStation> }) =>
+      patchStationRequest(stationId, patch),
+  });
+
+  function patchSelected(patch: Partial<EditStation>) {
     if (!selectedId) return;
     setStations((prev) => prev.map((s) => (s.id === selectedId ? { ...s, ...patch } : s)));
-    await fetch(`/api/stations/${selectedId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patch),
-    });
+    patchStationMutation.mutate({ stationId: selectedId, patch });
   }
 
-  async function removeSelected() {
+  const removeStationMutation = useMutation({
+    mutationFn: deleteStationRequest,
+    onSuccess: (_data, stationId) => {
+      setStations((prev) => prev.filter((s) => s.id !== stationId));
+      setSelectedId(null);
+    },
+  });
+
+  function removeSelected() {
     if (!selectedId) return;
-    await fetch(`/api/stations/${selectedId}`, { method: "DELETE" });
-    setStations((prev) => prev.filter((s) => s.id !== selectedId));
-    setSelectedId(null);
+    removeStationMutation.mutate(selectedId);
   }
 
-  async function saveLayout() {
+  const saveLayoutMutation = useMutation({
+    mutationFn: () =>
+      saveLayoutRequest(
+        roomId,
+        stations.map((s) => ({ id: s.id, posX: s.posX, posY: s.posY }))
+      ),
+    onSuccess: () => {
+      setDirty(false);
+      setSaveState("saved");
+    },
+  });
+
+  function saveLayout() {
     setSaveState("saving");
-    await fetch(`/api/rooms/${roomId}/layout`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        positions: stations.map((s) => ({ id: s.id, posX: s.posX, posY: s.posY })),
-      }),
-    });
-    setDirty(false);
-    setSaveState("saved");
+    saveLayoutMutation.mutate();
   }
 
   const selected = stations.find((s) => s.id === selectedId) ?? null;
