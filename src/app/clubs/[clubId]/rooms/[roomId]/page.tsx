@@ -4,11 +4,14 @@ import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { IconCircleFilled, IconEdit } from "@tabler/icons-react";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
 import { useNow } from "@/lib/useNow";
 import { formatDuration, formatMoney } from "@/lib/format";
 import { StationMarker } from "@/components/room/StationMarker";
 import { BookingModal } from "@/components/room/BookingModal";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { RoomDTO, StationDTO } from "@/lib/room-types";
 import type { TranslationKey } from "@/lib/i18n/dictionaries";
 
@@ -51,7 +54,7 @@ export default function RoomViewPage() {
     else setBooking(s);
   }
 
-  if (isLoading || !room) return <div className="text-slate-400">{t("common.loading")}</div>;
+  if (isLoading || !room) return <div className="text-muted-foreground">{t("common.loading")}</div>;
 
   const busy = room.stations.filter((s) => s.status === "BUSY").length;
   const free = room.stations.filter((s) => s.status === "FREE").length;
@@ -60,22 +63,30 @@ export default function RoomViewPage() {
     <div className="mx-auto max-w-6xl">
       <header className="mb-4 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">{room.name}</h1>
-          <p className="text-sm text-slate-400">
-            {room.club.name} · 🟢 {free} {t("room.free")} · 🔵 {busy} {t("room.busy")}
+          <h1 className="text-2xl font-bold text-foreground">{room.name}</h1>
+          <p className="flex items-center gap-3 text-sm text-muted-foreground">
+            {room.club.name}
+            <span className="flex items-center gap-1">
+              <IconCircleFilled className="h-2.5 w-2.5 text-success" />
+              {free} {t("room.free")}
+            </span>
+            <span className="flex items-center gap-1">
+              <IconCircleFilled className="h-2.5 w-2.5 text-primary" />
+              {busy} {t("room.busy")}
+            </span>
           </p>
         </div>
-        <Link
-          href={`/clubs/${clubId}/rooms/${roomId}/edit`}
-          className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800"
-        >
-          ✏️ {t("room.edit")}
-        </Link>
+        <Button asChild variant="outline">
+          <Link href={`/clubs/${clubId}/rooms/${roomId}/edit`}>
+            <IconEdit className="h-4 w-4" />
+            {t("room.edit")}
+          </Link>
+        </Button>
       </header>
 
-      <div className="relative aspect-[16/9] w-full overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60 bg-[radial-gradient(circle,#1e293b_1px,transparent_1px)] [background-size:24px_24px]">
+      <div className="relative aspect-[16/9] w-full overflow-hidden rounded-2xl border border-border bg-muted/40 bg-[radial-gradient(circle,hsl(var(--border))_1px,transparent_1px)] [background-size:24px_24px]">
         {room.stations.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-slate-500">
+          <div className="flex h-full items-center justify-center text-muted-foreground">
             {t("editor.emptyHint")}
           </div>
         ) : (
@@ -136,38 +147,34 @@ function StopModal({
       : room.price5h;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div
-        className="w-full max-w-sm rounded-2xl border border-slate-700 bg-slate-900 p-6"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 className="mb-1 text-xl font-bold text-white">{station.name}</h2>
-        <div className="mb-4 text-sm text-slate-400">
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>{station.name}</DialogTitle>
+        </DialogHeader>
+        <div className="text-sm text-muted-foreground">
           {t(`tariff.${sess.tariffKind}` as TranslationKey)}
-          {sess.customerName ? ` · 👤 ${sess.customerName}` : ""}
+          {sess.customerName ? ` · ${sess.customerName}` : ""}
         </div>
-        <div className="mb-5 flex justify-between rounded-lg bg-slate-950 p-3 text-sm">
-          <span className="text-slate-400">{t("station.elapsed")}</span>
-          <span className="font-mono text-white">{formatDuration(now - started)}</span>
+        <div className="flex justify-between rounded-lg bg-muted p-3 text-sm">
+          <span className="text-muted-foreground">{t("station.elapsed")}</span>
+          <span className="font-mono text-foreground">{formatDuration(now - started)}</span>
         </div>
-        <div className="mb-5 flex justify-between rounded-lg bg-slate-950 p-3">
-          <span className="text-slate-400">{t("station.cost")}</span>
-          <span className="text-lg font-bold text-emerald-300">
+        <div className="flex justify-between rounded-lg bg-muted p-3">
+          <span className="text-muted-foreground">{t("station.cost")}</span>
+          <span className="text-lg font-bold text-success">
             {formatMoney(cost)} {t("common.currency")}
           </span>
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={onStop}
-            className="flex-1 rounded-lg bg-rose-600 py-2.5 text-sm font-semibold text-white hover:bg-rose-500"
-          >
+          <Button variant="destructive" className="flex-1" onClick={onStop}>
             {t("station.stop")}
-          </button>
-          <button onClick={onClose} className="rounded-lg px-4 py-2.5 text-sm text-slate-400 hover:text-white">
+          </Button>
+          <Button variant="ghost" onClick={onClose}>
             {t("common.cancel")}
-          </button>
+          </Button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
