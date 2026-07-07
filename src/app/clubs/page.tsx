@@ -1,37 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
 
 type Club = { id: string; name: string; roomCount: number };
 
+async function fetchClubs(): Promise<Club[]> {
+  const res = await fetch("/api/clubs", { cache: "no-store" });
+  if (!res.ok) throw new Error(`GET /api/clubs failed: ${res.status}`);
+  return res.json();
+}
+
 export default function ClubsPage() {
   const { t } = useI18n();
-  const [clubs, setClubs] = useState<Club[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(false);
-    try {
-      const res = await fetch("/api/clubs", { cache: "no-store" });
-      if (!res.ok) throw new Error(`GET /api/clubs failed: ${res.status}`);
-      setClubs(await res.json());
-    } catch (err) {
-      console.error(err);
-      setError(true);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    // TODO(2026-07-02-tanstack-query-migration.md): this fetch pattern is replaced by useQuery in that plan; suppressing the new rule here rather than hand-restructuring ahead of it.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load();
-  }, [load]);
+  const {
+    data: clubs = [],
+    isLoading,
+    isError,
+  } = useQuery({ queryKey: ["clubs"], queryFn: fetchClubs });
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -40,9 +27,9 @@ export default function ClubsPage() {
         <p className="text-sm text-slate-400">{t("clubs.subtitle")}</p>
       </header>
 
-      {loading ? (
+      {isLoading ? (
         <div className="text-slate-400">{t("common.loading")}</div>
-      ) : error ? (
+      ) : isError ? (
         <div className="rounded-xl border border-dashed border-red-800 p-10 text-center text-red-400">
           {t("common.error")}
         </div>
