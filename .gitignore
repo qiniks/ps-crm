@@ -37,3 +37,5 @@ next-env.d.ts
 
 # subagent-driven-development scratch (progress ledger, task briefs/reports)
 .superpowers/
+.mcp.json
+.claude/launch.json
