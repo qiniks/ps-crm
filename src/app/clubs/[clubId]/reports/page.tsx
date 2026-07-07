@@ -4,6 +4,10 @@ import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
 import { formatMoney } from "@/lib/format";
+import { PageHeader } from "@/components/ui-patterns/page-header";
+import { ErrorState } from "@/components/ui-patterns/error-state";
+import { Card } from "@/components/ui/card";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import type { TranslationKey } from "@/lib/i18n/dictionaries";
 
 type Report = {
@@ -34,79 +38,76 @@ export default function ReportsPage() {
     data: report,
     isLoading,
     isError,
+    refetch,
   } = useQuery({ queryKey: ["reports", clubId], queryFn: () => fetchReport(clubId) });
 
-  if (isLoading) return <div className="text-slate-400">{t("common.loading")}</div>;
+  if (isLoading) return <div className="text-muted-foreground">{t("common.loading")}</div>;
   if (isError || !report) {
-    return (
-      <div className="rounded-xl border border-dashed border-red-800 p-10 text-center text-red-400">
-        {t("common.error")}
-      </div>
-    );
+    return <ErrorState message={t("common.error")} onRetry={() => refetch()} retryLabel={t("common.retry")} />;
   }
 
   return (
     <div className="mx-auto max-w-5xl">
-      <h1 className="mb-6 text-2xl font-bold text-white">{t("reports.title")}</h1>
+      <PageHeader title={t("reports.title")} />
 
       <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Card label={t("reports.revenueToday")}>
+        <StatCard label={t("reports.revenueToday")}>
           {formatMoney(report.revenueToday)} {t("common.currency")}
-        </Card>
-        <Card label={t("reports.sessionsToday")}>{report.sessionsToday}</Card>
-        <Card label={t("reports.avgCheck")}>
+        </StatCard>
+        <StatCard label={t("reports.sessionsToday")}>{report.sessionsToday}</StatCard>
+        <StatCard label={t("reports.avgCheck")}>
           {formatMoney(report.avgCheck)} {t("common.currency")}
-        </Card>
+        </StatCard>
       </div>
 
-      <h2 className="mb-3 text-lg font-semibold text-white">{t("reports.recent")}</h2>
-      <div className="overflow-hidden rounded-xl border border-slate-800">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-900 text-left text-slate-400">
-            <tr>
-              <th className="px-4 py-3 font-medium">{t("reports.station")}</th>
-              <th className="px-4 py-3 font-medium">{t("reports.tariff")}</th>
-              <th className="px-4 py-3 font-medium">{t("customers.name")}</th>
-              <th className="px-4 py-3 font-medium">{t("reports.amount")}</th>
-              <th className="px-4 py-3 font-medium">{t("reports.when")}</th>
-            </tr>
-          </thead>
-          <tbody>
+      <h2 className="mb-3 text-lg font-semibold text-foreground">{t("reports.recent")}</h2>
+      <div className="overflow-hidden rounded-xl border border-border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t("reports.station")}</TableHead>
+              <TableHead>{t("reports.tariff")}</TableHead>
+              <TableHead>{t("customers.name")}</TableHead>
+              <TableHead>{t("reports.amount")}</TableHead>
+              <TableHead>{t("reports.when")}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {report.recent.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-slate-500">
+              <TableRow>
+                <TableCell colSpan={5} className="text-center text-muted-foreground">
                   {t("reports.empty")}
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ) : (
               report.recent.map((s) => (
-                <tr key={s.id} className="border-t border-slate-800">
-                  <td className="px-4 py-3 text-white">{s.station}</td>
-                  <td className="px-4 py-3 text-slate-300">
+                <TableRow key={s.id}>
+                  <TableCell className="text-foreground">{s.station}</TableCell>
+                  <TableCell className="text-muted-foreground">
                     {t(`tariff.${s.tariffKind}` as TranslationKey)}
-                  </td>
-                  <td className="px-4 py-3 text-slate-300">{s.customerName ?? "—"}</td>
-                  <td className="px-4 py-3 text-emerald-300">
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{s.customerName ?? "—"}</TableCell>
+                  <TableCell className="text-success">
                     {formatMoney(s.cost)} {t("common.currency")}
-                  </td>
-                  <td className="px-4 py-3 text-slate-400">
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
                     {s.endedAt ? new Date(s.endedAt).toLocaleString(locale) : "—"}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))
             )}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
     </div>
   );
 }
 
-function Card({ label, children }: { label: string; children: React.ReactNode }) {
+function StatCard({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
-      <div className="text-xs uppercase tracking-wide text-slate-400">{label}</div>
-      <div className="mt-2 text-2xl font-bold text-white">{children}</div>
-    </div>
+    <Card className="p-5">
+      <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="mt-2 text-2xl font-bold text-foreground">{children}</div>
+    </Card>
   );
 }
