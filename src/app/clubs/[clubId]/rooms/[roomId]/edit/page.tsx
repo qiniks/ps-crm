@@ -105,7 +105,9 @@ export default function RoomEditPage() {
     if (!drag.current) return;
     drag.current.moved = true;
     const { x, y } = pointFromEvent(e);
-    setStations((prev) => prev.map((s) => (s.id === drag.current!.id ? { ...s, posX: x, posY: y } : s)));
+    setStations((prev) =>
+      prev.map((s) => (s.id === drag.current!.id ? { ...s, posX: x, posY: y } : s))
+    );
     setDirty(true);
     setSaveState("idle");
   }
