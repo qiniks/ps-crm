@@ -19,14 +19,19 @@ type Room = {
 
 type RoomsResponse = { club: { name: string }; rooms: Room[] };
 
+class RoomsFetchError extends Error {
+  constructor(message: string, public status: number) {
+    super(message);
+    this.name = "RoomsFetchError";
+  }
+}
+
 const EMPTY = { name: "", price1h: "", price3h: "", price5h: "", openHourlyRate: "" };
 
 async function fetchRooms(clubId: string): Promise<RoomsResponse> {
   const res = await fetch(`/api/clubs/${clubId}/rooms`, { cache: "no-store" });
   if (!res.ok) {
-    const error = new Error(`GET rooms failed: ${res.status}`);
-    (error as any).status = res.status;
-    throw error;
+    throw new RoomsFetchError(`GET rooms failed: ${res.status}`, res.status);
   }
   return res.json();
 }
@@ -71,7 +76,7 @@ export default function ClubPage() {
   const set = (k: keyof typeof EMPTY) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  if (isError && (error as any)?.status === 404) {
+  if (isError && error instanceof RoomsFetchError && error.status === 404) {
     notFound();
   }
 
