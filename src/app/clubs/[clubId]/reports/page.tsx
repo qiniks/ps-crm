@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
 import { formatMoney } from "@/lib/format";
 import type { TranslationKey } from "@/lib/i18n/dictionaries";
@@ -20,18 +20,30 @@ type Report = {
   }[];
 };
 
+async function fetchReport(clubId: string): Promise<Report> {
+  const res = await fetch(`/api/clubs/${clubId}/reports`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`GET reports failed: ${res.status}`);
+  return res.json();
+}
+
 export default function ReportsPage() {
   const { t, locale } = useI18n();
   const { clubId } = useParams<{ clubId: string }>();
-  const [report, setReport] = useState<Report | null>(null);
 
-  useEffect(() => {
-    fetch(`/api/clubs/${clubId}/reports`, { cache: "no-store" })
-      .then((r) => r.json())
-      .then(setReport);
-  }, [clubId]);
+  const {
+    data: report,
+    isLoading,
+    isError,
+  } = useQuery({ queryKey: ["reports", clubId], queryFn: () => fetchReport(clubId) });
 
-  if (!report) return <div className="text-slate-400">{t("common.loading")}</div>;
+  if (isLoading) return <div className="text-slate-400">{t("common.loading")}</div>;
+  if (isError || !report) {
+    return (
+      <div className="rounded-xl border border-dashed border-red-800 p-10 text-center text-red-400">
+        {t("common.error")}
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-5xl">
