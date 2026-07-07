@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { notFound, useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
 import { formatMoney } from "@/lib/format";
@@ -23,7 +23,11 @@ const EMPTY = { name: "", price1h: "", price3h: "", price5h: "", openHourlyRate:
 
 async function fetchRooms(clubId: string): Promise<RoomsResponse> {
   const res = await fetch(`/api/clubs/${clubId}/rooms`, { cache: "no-store" });
-  if (!res.ok) throw new Error(`GET rooms failed: ${res.status}`);
+  if (!res.ok) {
+    const error = new Error(`GET rooms failed: ${res.status}`);
+    (error as any).status = res.status;
+    throw error;
+  }
   return res.json();
 }
 
@@ -44,7 +48,7 @@ export default function ClubPage() {
   const [form, setForm] = useState(EMPTY);
   const [showForm, setShowForm] = useState(false);
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ["rooms", clubId],
     queryFn: () => fetchRooms(clubId),
   });
@@ -66,6 +70,10 @@ export default function ClubPage() {
 
   const set = (k: keyof typeof EMPTY) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  if (isError && (error as any)?.status === 404) {
+    notFound();
+  }
 
   const clubName = data?.club.name ?? "";
   const rooms = data?.rooms ?? [];
