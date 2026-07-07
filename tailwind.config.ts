@@ -7,11 +7,6 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // TODO(remove after Task 11): kept only until every page migrates off bg-brand/text-brand.
-        brand: {
-          DEFAULT: "#0070d1",
-          dark: "#003791",
-        },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
