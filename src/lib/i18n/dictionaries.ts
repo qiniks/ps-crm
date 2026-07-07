@@ -44,6 +44,7 @@ export const dictionaries = {
     "club.addRoom": "Добавить зал",
     "club.roomName": "Название зала",
     "club.noRooms": "В этом клубе пока нет залов",
+    "club.roomCreated": "Зал создан",
     "club.stationsCount": "приставок",
 
     "room.pricing": "Тарифы зала",
@@ -148,6 +149,7 @@ export const dictionaries = {
     "club.addRoom": "Add room",
     "club.roomName": "Room name",
     "club.noRooms": "This club has no rooms yet",
+    "club.roomCreated": "Room created",
     "club.stationsCount": "consoles",
 
     "room.pricing": "Room tariffs",

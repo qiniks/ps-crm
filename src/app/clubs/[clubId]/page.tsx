@@ -4,8 +4,19 @@ import { useState } from "react";
 import Link from "next/link";
 import { notFound, useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { IconDeviceGamepad2 } from "@tabler/icons-react";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
 import { formatMoney } from "@/lib/format";
+import { PageHeader } from "@/components/ui-patterns/page-header";
+import { EmptyState } from "@/components/ui-patterns/empty-state";
+import { ErrorState } from "@/components/ui-patterns/error-state";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 type Room = {
   id: string;
@@ -51,9 +62,9 @@ export default function ClubPage() {
   const { clubId } = useParams<{ clubId: string }>();
   const queryClient = useQueryClient();
   const [form, setForm] = useState(EMPTY);
-  const [showForm, setShowForm] = useState(false);
+  const [open, setOpen] = useState(false);
 
-  const { data, isLoading, isError, error } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["rooms", clubId],
     queryFn: () => fetchRooms(clubId),
   });
@@ -63,7 +74,8 @@ export default function ClubPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["rooms", clubId] });
       setForm(EMPTY);
-      setShowForm(false);
+      setOpen(false);
+      toast.success(t("club.roomCreated"));
     },
   });
 
@@ -85,82 +97,64 @@ export default function ClubPage() {
 
   return (
     <div className="mx-auto max-w-5xl">
-      <header className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">{clubName}</h1>
-          <p className="text-sm text-slate-400">{t("club.rooms")}</p>
-        </div>
-        <button
-          onClick={() => setShowForm((v) => !v)}
-          className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-dark"
-        >
-          + {t("club.addRoom")}
-        </button>
-      </header>
+      <PageHeader
+        title={clubName}
+        subtitle={t("club.rooms")}
+        actions={<Button onClick={() => setOpen(true)}>+ {t("club.addRoom")}</Button>}
+      />
 
-      {showForm && (
-        <form
-          onSubmit={create}
-          className="mb-8 rounded-xl border border-slate-800 bg-slate-900 p-5"
-        >
-          <input
-            value={form.name}
-            onChange={set("name")}
-            placeholder={t("club.roomName")}
-            className="mb-4 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-brand"
-          />
-          <div className="mb-1 text-xs uppercase tracking-wide text-slate-400">
-            {t("room.pricing")} ({t("common.currency")})
-          </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <PriceInput label={t("room.price1h")} value={form.price1h} onChange={set("price1h")} />
-            <PriceInput label={t("room.price3h")} value={form.price3h} onChange={set("price3h")} />
-            <PriceInput label={t("room.price5h")} value={form.price5h} onChange={set("price5h")} />
-            <PriceInput
-              label={t("room.priceOpen")}
-              value={form.openHourlyRate}
-              onChange={set("openHourlyRate")}
-            />
-          </div>
-          <div className="mt-4 flex gap-2">
-            <button
-              disabled={createRoomMutation.isPending}
-              className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-dark disabled:opacity-50"
-            >
-              {t("common.create")}
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowForm(false)}
-              className="rounded-lg px-4 py-2 text-sm text-slate-400 hover:text-white"
-            >
-              {t("common.cancel")}
-            </button>
-          </div>
-        </form>
-      )}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("club.addRoom")}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={create} className="flex flex-col gap-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="room-name">{t("club.roomName")}</Label>
+              <Input id="room-name" value={form.name} onChange={set("name")} />
+            </div>
+            <div>
+              <div className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">
+                {t("room.pricing")} ({t("common.currency")})
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <PriceInput label={t("room.price1h")} value={form.price1h} onChange={set("price1h")} />
+                <PriceInput label={t("room.price3h")} value={form.price3h} onChange={set("price3h")} />
+                <PriceInput label={t("room.price5h")} value={form.price5h} onChange={set("price5h")} />
+                <PriceInput
+                  label={t("room.priceOpen")}
+                  value={form.openHourlyRate}
+                  onChange={set("openHourlyRate")}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+                {t("common.cancel")}
+              </Button>
+              <Button disabled={createRoomMutation.isPending}>{t("common.create")}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {isLoading ? (
-        <div className="text-slate-400">{t("common.loading")}</div>
+        <div className="text-muted-foreground">{t("common.loading")}</div>
       ) : isError ? (
-        <div className="rounded-xl border border-dashed border-red-800 p-10 text-center text-red-400">
-          {t("common.error")}
-        </div>
+        <ErrorState message={t("common.error")} onRetry={() => refetch()} retryLabel={t("common.retry")} />
       ) : rooms.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-slate-700 p-10 text-center text-slate-500">
-          {t("club.noRooms")}
-        </div>
+        <EmptyState icon={<IconDeviceGamepad2 className="h-8 w-8" />} message={t("club.noRooms")} />
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {rooms.map((r) => (
-            <div key={r.id} className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+            <Card key={r.id} className="p-5">
               <div className="flex items-center justify-between">
-                <div className="font-semibold text-white">{r.name}</div>
-                <div className="text-sm text-slate-400">
-                  🎮 {r.stationCount} {t("club.stationsCount")}
-                </div>
+                <div className="font-semibold text-foreground">{r.name}</div>
+                <Badge variant="secondary">
+                  {r.stationCount} {t("club.stationsCount")}
+                </Badge>
               </div>
-              <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-400">
+              <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                 <span>1h: {formatMoney(r.price1h)}</span>
                 <span>3h: {formatMoney(r.price3h)}</span>
                 <span>5h: {formatMoney(r.price5h)}</span>
@@ -170,20 +164,14 @@ export default function ClubPage() {
                 </span>
               </div>
               <div className="mt-4 flex gap-2">
-                <Link
-                  href={`/clubs/${clubId}/rooms/${r.id}`}
-                  className="flex-1 rounded-lg bg-brand py-2 text-center text-sm font-semibold text-white hover:bg-brand-dark"
-                >
-                  {t("room.view")}
-                </Link>
-                <Link
-                  href={`/clubs/${clubId}/rooms/${r.id}/edit`}
-                  className="rounded-lg border border-slate-700 px-4 py-2 text-center text-sm text-slate-300 hover:bg-slate-800"
-                >
-                  {t("common.edit")}
-                </Link>
+                <Button asChild className="flex-1">
+                  <Link href={`/clubs/${clubId}/rooms/${r.id}`}>{t("room.view")}</Link>
+                </Button>
+                <Button asChild variant="outline">
+                  <Link href={`/clubs/${clubId}/rooms/${r.id}/edit`}>{t("common.edit")}</Link>
+                </Button>
               </div>
-            </div>
+            </Card>
           ))}
         </div>
       )}
@@ -201,16 +189,9 @@ function PriceInput({
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }) {
   return (
-    <label className="block">
-      <span className="mb-1 block text-xs text-slate-400">{label}</span>
-      <input
-        type="number"
-        min="0"
-        value={value}
-        onChange={onChange}
-        placeholder="0"
-        className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-brand"
-      />
-    </label>
+    <div className="space-y-1.5">
+      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <Input type="number" min="0" value={value} onChange={onChange} placeholder="0" />
+    </div>
   );
 }
