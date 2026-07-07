@@ -4,10 +4,17 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { IconArrowLeft, IconCheck } from "@tabler/icons-react";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 
 type EditStation = { id: string; name: string; type: string; status: string; posX: number; posY: number };
-
 type RoomEditData = { name: string; stations: EditStation[] };
 
 async function fetchRoom(roomId: string): Promise<RoomEditData> {
@@ -98,9 +105,7 @@ export default function RoomEditPage() {
     if (!drag.current) return;
     drag.current.moved = true;
     const { x, y } = pointFromEvent(e);
-    setStations((prev) =>
-      prev.map((s) => (s.id === drag.current!.id ? { ...s, posX: x, posY: y } : s))
-    );
+    setStations((prev) => prev.map((s) => (s.id === drag.current!.id ? { ...s, posX: x, posY: y } : s)));
     setDirty(true);
     setSaveState("idle");
   }
@@ -161,6 +166,7 @@ export default function RoomEditPage() {
     onSuccess: () => {
       setDirty(false);
       setSaveState("saved");
+      toast.success(t("editor.saved"));
     },
   });
 
@@ -175,64 +181,63 @@ export default function RoomEditPage() {
     <div className="mx-auto max-w-6xl">
       <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <Link href={`/clubs/${clubId}`} className="text-xs text-slate-400 hover:text-white">
-            ← {roomName}
+          <Link
+            href={`/clubs/${clubId}`}
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <IconArrowLeft className="h-3 w-3" />
+            {roomName}
           </Link>
-          <h1 className="text-2xl font-bold text-white">{t("editor.title")}</h1>
+          <h1 className="text-2xl font-bold text-foreground">{t("editor.title")}</h1>
         </div>
         <div className="flex items-center gap-3">
-          <Link
-            href={`/clubs/${clubId}/rooms/${roomId}`}
-            className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800"
-          >
-            {t("room.view")}
-          </Link>
-          <button
-            onClick={saveLayout}
-            disabled={saveState === "saving"}
-            className={`rounded-lg px-4 py-2 text-sm font-semibold text-white ${
-              dirty ? "bg-brand hover:bg-brand-dark" : "bg-slate-700"
-            }`}
-          >
-            {saveState === "saving"
-              ? t("editor.saving")
-              : saveState === "saved" && !dirty
-              ? `✓ ${t("editor.saved")}`
-              : t("editor.save")}
-          </button>
+          <Button asChild variant="outline">
+            <Link href={`/clubs/${clubId}/rooms/${roomId}`}>{t("room.view")}</Link>
+          </Button>
+          <Button onClick={saveLayout} disabled={saveState === "saving"} variant={dirty ? "default" : "secondary"}>
+            {saveState === "saving" ? (
+              t("editor.saving")
+            ) : saveState === "saved" && !dirty ? (
+              <>
+                <IconCheck className="h-4 w-4" />
+                {t("editor.saved")}
+              </>
+            ) : (
+              t("editor.save")
+            )}
+          </Button>
         </div>
       </header>
 
       <form onSubmit={addStation} className="mb-4 flex flex-wrap gap-2">
-        <input
+        <Input
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
           placeholder={t("editor.stationName")}
-          className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-brand"
+          className="max-w-xs"
         />
-        <select
-          value={newType}
-          onChange={(e) => setNewType(e.target.value)}
-          className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-brand"
-        >
-          <option value="PS5">PS5</option>
-          <option value="PS4">PS4</option>
-        </select>
-        <button className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-dark">
-          + {t("editor.addStation")}
-        </button>
+        <Select value={newType} onValueChange={setNewType}>
+          <SelectTrigger className="w-28">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="PS5">PS5</SelectItem>
+            <SelectItem value="PS4">PS4</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button>+ {t("editor.addStation")}</Button>
       </form>
 
-      <p className="mb-2 text-xs text-slate-500">{t("editor.hint")}</p>
+      <p className="mb-2 text-xs text-muted-foreground">{t("editor.hint")}</p>
 
       <div className="flex gap-4">
         <div
           ref={canvasRef}
           onPointerMove={onPointerMove}
-          className="relative aspect-[16/9] flex-1 touch-none overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60 bg-[radial-gradient(circle,#1e293b_1px,transparent_1px)] [background-size:24px_24px]"
+          className="relative aspect-[16/9] flex-1 touch-none overflow-hidden rounded-2xl border border-border bg-muted/40 bg-[radial-gradient(circle,hsl(var(--border))_1px,transparent_1px)] [background-size:24px_24px]"
         >
           {stations.length === 0 && (
-            <div className="flex h-full items-center justify-center text-slate-500">
+            <div className="flex h-full items-center justify-center text-muted-foreground">
               {t("editor.emptyHint")}
             </div>
           )}
@@ -242,45 +247,40 @@ export default function RoomEditPage() {
               onPointerDown={(e) => onPointerDown(e, s.id)}
               onPointerUp={(e) => onPointerUp(e, s.id)}
               style={{ left: `${s.posX}%`, top: `${s.posY}%` }}
-              className={`absolute w-24 -translate-x-1/2 -translate-y-1/2 cursor-grab touch-none select-none rounded-xl border-2 bg-slate-800 p-2 text-center shadow-lg active:cursor-grabbing ${
-                selectedId === s.id ? "border-brand" : "border-slate-600"
-              }`}
+              className={cn(
+                "absolute w-24 -translate-x-1/2 -translate-y-1/2 cursor-grab touch-none select-none rounded-xl border-2 bg-card p-2 text-center shadow-lg active:cursor-grabbing",
+                selectedId === s.id ? "border-primary" : "border-border"
+              )}
             >
-              <div className="truncate text-xs font-semibold text-white">{s.name}</div>
-              <div className="text-[10px] text-slate-400">{s.type}</div>
+              <div className="truncate text-xs font-semibold text-foreground">{s.name}</div>
+              <div className="text-[10px] text-muted-foreground">{s.type}</div>
             </div>
           ))}
         </div>
 
         {selected && (
-          <div className="w-56 shrink-0 rounded-2xl border border-slate-800 bg-slate-900 p-4">
-            <div className="mb-3 text-sm font-semibold text-white">{selected.name}</div>
-            <label className="mb-3 block">
-              <span className="mb-1 block text-xs text-slate-400">{t("editor.stationName")}</span>
-              <input
-                value={selected.name}
-                onChange={(e) => patchSelected({ name: e.target.value })}
-                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-brand"
-              />
-            </label>
-            <label className="mb-4 block">
-              <span className="mb-1 block text-xs text-slate-400">{t("editor.type")}</span>
-              <select
-                value={selected.type}
-                onChange={(e) => patchSelected({ type: e.target.value })}
-                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-brand"
-              >
-                <option value="PS5">PS5</option>
-                <option value="PS4">PS4</option>
-              </select>
-            </label>
-            <button
-              onClick={removeSelected}
-              className="w-full rounded-lg border border-rose-700 py-2 text-sm text-rose-400 hover:bg-rose-950"
-            >
+          <Card className="w-56 shrink-0 p-4">
+            <div className="mb-3 text-sm font-semibold text-foreground">{selected.name}</div>
+            <div className="mb-3 space-y-1.5">
+              <Label className="text-xs text-muted-foreground">{t("editor.stationName")}</Label>
+              <Input value={selected.name} onChange={(e) => patchSelected({ name: e.target.value })} />
+            </div>
+            <div className="mb-4 space-y-1.5">
+              <Label className="text-xs text-muted-foreground">{t("editor.type")}</Label>
+              <Select value={selected.type} onValueChange={(v) => patchSelected({ type: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PS5">PS5</SelectItem>
+                  <SelectItem value="PS4">PS4</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button variant="destructive" className="w-full" onClick={removeSelected}>
               {t("editor.remove")}
-            </button>
-          </div>
+            </Button>
+          </Card>
         )}
       </div>
     </div>
