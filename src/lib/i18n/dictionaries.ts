@@ -30,6 +30,7 @@ export const dictionaries = {
     "common.open": "Открыть",
     "common.perHour": "/час",
     "common.confirm": "Подтвердить",
+    "common.retry": "Повторить",
 
     "clubs.title": "Игровые клубы",
     "clubs.subtitle": "Выберите клуб",
@@ -132,6 +133,7 @@ export const dictionaries = {
     "common.open": "Open",
     "common.perHour": "/hr",
     "common.confirm": "Confirm",
+    "common.retry": "Retry",
 
     "clubs.title": "Gaming clubs",
     "clubs.subtitle": "Pick a club",
