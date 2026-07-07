@@ -17,6 +17,7 @@ export const dictionaries = {
     "nav.reports": "Отчёты",
     "nav.back": "Назад",
     "nav.signOut": "Выйти",
+    "theme.toggle": "Переключить тему",
 
     "lang.switch": "Язык",
     "common.currency": "сом",
@@ -120,6 +121,7 @@ export const dictionaries = {
     "nav.reports": "Reports",
     "nav.back": "Back",
     "nav.signOut": "Sign out",
+    "theme.toggle": "Toggle theme",
 
     "lang.switch": "Language",
     "common.currency": "KGS",
