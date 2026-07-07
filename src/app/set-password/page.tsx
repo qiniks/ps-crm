@@ -3,6 +3,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function SetPasswordPage() {
   const router = useRouter();
@@ -30,29 +34,33 @@ export default function SetPasswordPage() {
   }
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-4">
-      <h1 className="mb-2 text-2xl font-bold text-white">Set your password</h1>
-      <p className="mb-6 text-sm text-slate-400">
-        Choose a password to finish setting up your account.
-      </p>
-      <form onSubmit={onSubmit} className="flex flex-col gap-3">
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="New password"
-          required
-          minLength={8}
-          className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-brand"
-        />
-        {error && <div className="text-sm text-red-400">{error}</div>}
-        <button
-          disabled={submitting}
-          className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-dark disabled:opacity-50"
-        >
-          {submitting ? "Saving…" : "Save password"}
-        </button>
-      </form>
+    <div className="flex min-h-screen items-center justify-center px-4">
+      <Card className="w-full max-w-sm">
+        <CardHeader>
+          <CardTitle className="text-2xl">Set your password</CardTitle>
+          <CardDescription>Choose a password to finish setting up your account.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={onSubmit} className="flex flex-col gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="new-password">New password</Label>
+              <Input
+                id="new-password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="New password"
+                required
+                minLength={8}
+              />
+            </div>
+            {error && <div className="text-sm text-destructive">{error}</div>}
+            <Button disabled={submitting} className="mt-1">
+              {submitting ? "Saving…" : "Save password"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }
