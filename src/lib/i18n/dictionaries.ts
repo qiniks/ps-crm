@@ -100,6 +100,7 @@ export const dictionaries = {
     "customers.balance": "Баланс",
     "customers.bonus": "Бонусы",
     "customers.empty": "Клиентов пока нет",
+    "customers.created": "Клиент добавлен",
 
     "reports.title": "Отчёты",
     "reports.revenueToday": "Выручка сегодня",
@@ -205,6 +206,7 @@ export const dictionaries = {
     "customers.balance": "Balance",
     "customers.bonus": "Bonus",
     "customers.empty": "No customers yet",
+    "customers.created": "Customer added",
 
     "reports.title": "Reports",
     "reports.revenueToday": "Revenue today",
