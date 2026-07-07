@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
 import { useNow } from "@/lib/useNow";
 import { formatDuration, formatMoney } from "@/lib/format";
@@ -11,40 +12,46 @@ import { BookingModal } from "@/components/room/BookingModal";
 import type { RoomDTO, StationDTO } from "@/lib/room-types";
 import type { TranslationKey } from "@/lib/i18n/dictionaries";
 
+async function fetchRoom(roomId: string): Promise<RoomDTO> {
+  const res = await fetch(`/api/rooms/${roomId}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`GET room failed: ${res.status}`);
+  return res.json();
+}
+
+async function stopSession(sessionId: string) {
+  const res = await fetch(`/api/sessions/${sessionId}/stop`, { method: "POST" });
+  if (!res.ok) throw new Error(`POST stop failed: ${res.status}`);
+  return res.json();
+}
+
 export default function RoomViewPage() {
   const { t } = useI18n();
   const { clubId, roomId } = useParams<{ clubId: string; roomId: string }>();
+  const queryClient = useQueryClient();
   const now = useNow(1000);
-  const [room, setRoom] = useState<RoomDTO | null>(null);
   const [booking, setBooking] = useState<StationDTO | null>(null);
   const [stopping, setStopping] = useState<StationDTO | null>(null);
 
-  const load = useCallback(async () => {
-    const res = await fetch(`/api/rooms/${roomId}`, { cache: "no-store" });
-    if (res.ok) setRoom(await res.json());
-  }, [roomId]);
+  const { data: room, isLoading } = useQuery({
+    queryKey: ["room", roomId],
+    queryFn: () => fetchRoom(roomId),
+    refetchInterval: 15000,
+  });
 
-  useEffect(() => {
-    // TODO(2026-07-02-tanstack-query-migration.md): this fetch pattern is replaced by useQuery in that plan; suppressing the new rule here rather than hand-restructuring ahead of it.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load();
-    const id = setInterval(load, 15000);
-    return () => clearInterval(id);
-  }, [load]);
+  const stopMutation = useMutation({
+    mutationFn: stopSession,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["room", roomId] });
+      setStopping(null);
+    },
+  });
 
   function onSelect(s: StationDTO) {
     if (s.status === "BUSY") setStopping(s);
     else setBooking(s);
   }
 
-  async function stopSession() {
-    if (!stopping?.activeSession) return;
-    await fetch(`/api/sessions/${stopping.activeSession.id}/stop`, { method: "POST" });
-    setStopping(null);
-    load();
-  }
-
-  if (!room) return <div className="text-slate-400">{t("common.loading")}</div>;
+  if (isLoading || !room) return <div className="text-slate-400">{t("common.loading")}</div>;
 
   const busy = room.stations.filter((s) => s.status === "BUSY").length;
   const free = room.stations.filter((s) => s.status === "FREE").length;
@@ -85,7 +92,7 @@ export default function RoomViewPage() {
           onClose={() => setBooking(null)}
           onBooked={() => {
             setBooking(null);
-            load();
+            queryClient.invalidateQueries({ queryKey: ["room", roomId] });
           }}
         />
       )}
@@ -96,7 +103,7 @@ export default function RoomViewPage() {
           room={room}
           now={now}
           onClose={() => setStopping(null)}
-          onStop={stopSession}
+          onStop={() => stopMutation.mutate(stopping.activeSession!.id)}
         />
       )}
     </div>

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
 import { formatMoney } from "@/lib/format";
 import { TARIFFS, fixedPrice, type TariffKind } from "@/lib/tariffs";
@@ -8,6 +9,22 @@ import type { RoomDTO, StationDTO } from "@/lib/room-types";
 import type { TranslationKey } from "@/lib/i18n/dictionaries";
 
 type Customer = { id: string; name: string };
+
+async function fetchCustomers(clubId: string): Promise<Customer[]> {
+  const res = await fetch(`/api/clubs/${clubId}/customers`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`GET customers failed: ${res.status}`);
+  return res.json();
+}
+
+async function bookSession(values: { stationId: string; tariffKind: TariffKind; customerId?: string }) {
+  const res = await fetch("/api/sessions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(values),
+  });
+  if (!res.ok) throw new Error(`POST session failed: ${res.status}`);
+  return res.json();
+}
 
 export function BookingModal({
   room,
@@ -21,31 +38,31 @@ export function BookingModal({
   onBooked: () => void;
 }) {
   const { t } = useI18n();
+  const queryClient = useQueryClient();
   const [tariff, setTariff] = useState<TariffKind>("HOUR_1");
   const [customerId, setCustomerId] = useState("");
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    fetch(`/api/clubs/${room.club.id}/customers`, { cache: "no-store" })
-      .then((r) => r.json())
-      .then(setCustomers)
-      .catch(() => setCustomers([]));
-  }, [room.club.id]);
+  // Same query key as the customers page ("customers", clubId) — TanStack
+  // Query dedupes/shares this cache entry with that page automatically.
+  const { data: customers = [] } = useQuery({
+    queryKey: ["customers", room.club.id],
+    queryFn: () => fetchCustomers(room.club.id),
+  });
 
-  async function confirm() {
-    setBusy(true);
-    await fetch("/api/sessions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        stationId: station.id,
-        tariffKind: tariff,
-        customerId: customerId || undefined,
-      }),
+  const bookMutation = useMutation({
+    mutationFn: bookSession,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["room", room.id] });
+      onBooked();
+    },
+  });
+
+  function confirm() {
+    bookMutation.mutate({
+      stationId: station.id,
+      tariffKind: tariff,
+      customerId: customerId || undefined,
     });
-    setBusy(false);
-    onBooked();
   }
 
   return (
@@ -115,7 +132,7 @@ export function BookingModal({
         <div className="flex gap-2">
           <button
             onClick={confirm}
-            disabled={busy}
+            disabled={bookMutation.isPending}
             className="flex-1 rounded-lg bg-brand py-2.5 text-sm font-semibold text-white hover:bg-brand-dark disabled:opacity-50"
           >
             {t("booking.confirm")}
