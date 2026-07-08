@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { LanguageProvider } from "@/lib/i18n/LanguageProvider";
-import { Sidebar } from "@/components/Sidebar";
 import { QueryProvider } from "@/components/QueryProvider";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
@@ -24,12 +23,7 @@ export default function RootLayout({
       <body>
         <ThemeProvider>
           <QueryProvider>
-            <LanguageProvider>
-              <div className="flex h-screen overflow-hidden">
-                <Sidebar />
-                <main className="flex-1 overflow-y-auto p-8">{children}</main>
-              </div>
-            </LanguageProvider>
+            <LanguageProvider>{children}</LanguageProvider>
           </QueryProvider>
           <Toaster />
         </ThemeProvider>
