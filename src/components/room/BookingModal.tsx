@@ -32,7 +32,10 @@ async function bookSession(values: { stationId: string; tariffKind: TariffKind; 
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(values),
   });
-  if (!res.ok) throw new Error(`POST session failed: ${res.status}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error ?? `POST session failed: ${res.status}`);
+  }
   return res.json();
 }
 
@@ -59,15 +62,20 @@ export function BookingModal({
     queryFn: () => fetchCustomers(room.club.id),
   });
 
+  const [error, setError] = useState<string | null>(null);
   const bookMutation = useMutation({
     mutationFn: bookSession,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["room", room.id] });
       onBooked();
     },
+    onError: (e: Error) => {
+      setError(e.message === "reservation-conflict" ? t("reservation.blocksWalkIn") : t("common.error"));
+    },
   });
 
   function confirm() {
+    setError(null);
     bookMutation.mutate({
       stationId: station.id,
       tariffKind: tariff,
@@ -135,6 +143,7 @@ export function BookingModal({
           </Select>
         </div>
 
+        {error && <div className="text-sm text-destructive">{error}</div>}
         <div className="flex gap-2">
           <Button className="flex-1" disabled={bookMutation.isPending} onClick={confirm}>
             {t("booking.confirm")}

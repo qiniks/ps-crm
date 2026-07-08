@@ -8,10 +8,13 @@ import { IconCircleFilled, IconEdit } from "@tabler/icons-react";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
 import { useNow } from "@/lib/useNow";
 import { formatDuration, formatMoney } from "@/lib/format";
+import { PAYMENT_METHODS, type PaymentMethod } from "@/lib/shifts";
 import { StationMarker } from "@/components/room/StationMarker";
 import { BookingModal } from "@/components/room/BookingModal";
+import { ReservationsPanel } from "@/components/room/ReservationsPanel";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 import type { RoomDTO, StationDTO } from "@/lib/room-types";
 import type { TranslationKey } from "@/lib/i18n/dictionaries";
 
@@ -21,8 +24,12 @@ async function fetchRoom(roomId: string): Promise<RoomDTO> {
   return res.json();
 }
 
-async function stopSession(sessionId: string) {
-  const res = await fetch(`/api/sessions/${sessionId}/stop`, { method: "POST" });
+async function stopSession(sessionId: string, paymentMethod: PaymentMethod) {
+  const res = await fetch(`/api/sessions/${sessionId}/stop`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ paymentMethod }),
+  });
   if (!res.ok) throw new Error(`POST stop failed: ${res.status}`);
   return res.json();
 }
@@ -42,9 +49,11 @@ export default function RoomViewPage() {
   });
 
   const stopMutation = useMutation({
-    mutationFn: stopSession,
+    mutationFn: ({ sessionId, paymentMethod }: { sessionId: string; paymentMethod: PaymentMethod }) =>
+      stopSession(sessionId, paymentMethod),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["room", roomId] });
+      queryClient.invalidateQueries({ queryKey: ["shifts", clubId] });
       setStopping(null);
     },
   });
@@ -96,6 +105,8 @@ export default function RoomViewPage() {
         )}
       </div>
 
+      <ReservationsPanel room={room} />
+
       {booking && (
         <BookingModal
           room={room}
@@ -113,8 +124,11 @@ export default function RoomViewPage() {
           station={stopping}
           room={room}
           now={now}
+          pending={stopMutation.isPending}
           onClose={() => setStopping(null)}
-          onStop={() => stopMutation.mutate(stopping.activeSession!.id)}
+          onStop={(paymentMethod) =>
+            stopMutation.mutate({ sessionId: stopping.activeSession!.id, paymentMethod })
+          }
         />
       )}
     </div>
@@ -125,16 +139,19 @@ function StopModal({
   station,
   room,
   now,
+  pending,
   onClose,
   onStop,
 }: {
   station: StationDTO;
   room: RoomDTO;
   now: number;
+  pending: boolean;
   onClose: () => void;
-  onStop: () => void;
+  onStop: (paymentMethod: PaymentMethod) => void;
 }) {
   const { t } = useI18n();
+  const [method, setMethod] = useState<PaymentMethod>("CASH");
   const sess = station.activeSession!;
   const started = new Date(sess.startedAt).getTime();
   const cost =
@@ -166,8 +183,24 @@ function StopModal({
             {formatMoney(cost)} {t("common.currency")}
           </span>
         </div>
+        <div>
+          <div className="mb-1.5 text-sm font-medium text-foreground">{t("payment.method")}</div>
+          <div className="grid grid-cols-2 gap-2">
+            {PAYMENT_METHODS.map((m) => (
+              <Button
+                key={m}
+                type="button"
+                variant={method === m ? "default" : "outline"}
+                className={cn(method !== m && "text-muted-foreground")}
+                onClick={() => setMethod(m)}
+              >
+                {t(`payment.${m}` as TranslationKey)}
+              </Button>
+            ))}
+          </div>
+        </div>
         <div className="flex gap-2">
-          <Button variant="destructive" className="flex-1" onClick={onStop}>
+          <Button variant="destructive" className="flex-1" disabled={pending} onClick={() => onStop(method)}>
             {t("station.stop")}
           </Button>
           <Button variant="ghost" onClick={onClose}>

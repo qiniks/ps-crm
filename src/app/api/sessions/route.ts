@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { fixedPrice, tariffHours, type TariffKind } from "@/lib/tariffs";
 import { requireMembership } from "@/lib/auth/requireMembership";
+import { bookingWindow, findConflict } from "@/lib/reservations";
 
 const VALID: TariffKind[] = ["HOUR_1", "HOUR_3", "HOUR_5", "OPEN"];
 
@@ -35,6 +36,20 @@ export async function POST(req: NextRequest) {
   }
 
   const now = new Date();
+
+  // A walk-in must not run into an upcoming reservation on this station.
+  const upcoming = await prisma.reservation.findMany({
+    where: { stationId: station.id, status: "BOOKED", endAt: { gte: now } },
+    select: { startAt: true, endAt: true },
+  });
+  const conflict = findConflict(bookingWindow(now, body.tariffKind), upcoming);
+  if (conflict) {
+    return NextResponse.json(
+      { error: "reservation-conflict", conflictStartAt: conflict.startAt },
+      { status: 409 }
+    );
+  }
+
   const hours = tariffHours(body.tariffKind);
   const plannedEndAt = hours != null ? new Date(now.getTime() + hours * 3_600_000) : null;
   // Fixed tariffs are charged up-front; OPEN is billed on stop.

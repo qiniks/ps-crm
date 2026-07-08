@@ -4,10 +4,12 @@ import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
 import { formatMoney } from "@/lib/format";
+import { fetchShifts } from "@/components/shift/ShiftCard";
 import { PageHeader } from "@/components/ui-patterns/page-header";
 import { ErrorState } from "@/components/ui-patterns/error-state";
 import { Card } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 import type { TranslationKey } from "@/lib/i18n/dictionaries";
 
 type Report = {
@@ -40,6 +42,11 @@ export default function ReportsPage() {
     isError,
     refetch,
   } = useQuery({ queryKey: ["reports", clubId], queryFn: () => fetchReport(clubId) });
+
+  const { data: shifts } = useQuery({
+    queryKey: ["shifts", clubId],
+    queryFn: () => fetchShifts(clubId),
+  });
 
   if (isLoading) return <div className="text-muted-foreground">{t("common.loading")}</div>;
   if (isError || !report) {
@@ -99,6 +106,62 @@ export default function ReportsPage() {
           </TableBody>
         </Table>
       </div>
+
+      {shifts && shifts.history.length > 0 && (
+        <>
+          <h2 className="mb-3 mt-8 text-lg font-semibold text-foreground">{t("shift.history")}</h2>
+          <div className="overflow-hidden rounded-xl border border-border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t("shift.openedAt")}</TableHead>
+                  <TableHead>{t("shift.cashier")}</TableHead>
+                  <TableHead>{t("payment.CASH")}</TableHead>
+                  <TableHead>{t("payment.CARD")}</TableHead>
+                  <TableHead>{t("shift.expectedCash")}</TableHead>
+                  <TableHead>{t("shift.closingCash")}</TableHead>
+                  <TableHead>{t("shift.difference")}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {shifts.history.map((s) => (
+                  <TableRow key={s.id}>
+                    <TableCell className="text-muted-foreground">
+                      {new Date(s.openedAt).toLocaleString(locale)}
+                    </TableCell>
+                    <TableCell className="text-foreground">{s.openedBy}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {formatMoney(s.cashRevenue)} {t("common.currency")}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {formatMoney(s.cardRevenue)} {t("common.currency")}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {formatMoney(s.expectedCash)} {t("common.currency")}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {s.closingCash != null ? `${formatMoney(s.closingCash)} ${t("common.currency")}` : "—"}
+                    </TableCell>
+                    <TableCell
+                      className={cn(
+                        s.difference == null || s.difference === 0
+                          ? "text-muted-foreground"
+                          : s.difference < 0
+                          ? "text-destructive"
+                          : "text-success"
+                      )}
+                    >
+                      {s.difference == null
+                        ? "—"
+                        : `${s.difference > 0 ? "+" : ""}${formatMoney(s.difference)} ${t("common.currency")}`}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </>
+      )}
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   IconArrowLeft,
   IconChartBar,
+  IconChartHistogram,
   IconDeviceGamepad2,
   IconLogout,
   IconUsers,
@@ -32,6 +33,7 @@ export function Sidebar() {
         { href: `/clubs/${clubId}`, key: "nav.rooms", icon: IconDeviceGamepad2 },
         { href: `/clubs/${clubId}/customers`, key: "nav.customers", icon: IconUsers },
         { href: `/clubs/${clubId}/reports`, key: "nav.reports", icon: IconChartBar },
+        { href: `/clubs/${clubId}/analytics`, key: "nav.analytics", icon: IconChartHistogram },
       ]
     : [{ href: "/clubs", key: "nav.clubs", icon: IconDeviceGamepad2 }];
 
