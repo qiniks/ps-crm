@@ -1,46 +1,51 @@
-import { redirect } from "next/navigation";
-import { prisma } from "@/lib/prisma";
-import { getSessionUser } from "@/lib/auth/session";
-import { createClub, inviteMember } from "./actions";
+"use client";
+
+import { useI18n } from "@/lib/i18n/LanguageProvider";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { createClub as CreateClub, inviteMember as InviteMember } from "./actions";
 
-export default async function AdminPage() {
-  const user = await getSessionUser();
-  if (!user || user.email !== process.env.ADMIN_EMAIL) {
-    redirect("/clubs");
-  }
+type Club = { id: string; name: string };
 
-  const clubs = await prisma.tenant.findMany({ orderBy: { name: "asc" } });
+export function AdminPageClient({
+  clubs,
+  createClub,
+  inviteMember,
+}: {
+  clubs: Club[];
+  createClub: typeof CreateClub;
+  inviteMember: typeof InviteMember;
+}) {
+  const { t } = useI18n();
 
   return (
     <div className="mx-auto max-w-xl">
-      <h1 className="mb-6 text-2xl font-bold text-foreground">Admin</h1>
+      <h1 className="mb-6 text-2xl font-bold text-foreground">{t("admin.title")}</h1>
 
       <Card className="mb-8 p-5">
         <CardHeader className="p-0 pb-3">
-          <CardTitle className="text-lg">Create a club</CardTitle>
+          <CardTitle className="text-lg">{t("admin.createClub")}</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <form action={createClub} className="flex gap-3">
-            <Input name="name" placeholder="Club name" required className="flex-1" />
-            <Button>Create</Button>
+            <Input name="name" placeholder={t("clubs.name")} required className="flex-1" />
+            <Button>{t("common.create")}</Button>
           </form>
         </CardContent>
       </Card>
 
       <Card className="p-5">
         <CardHeader className="p-0 pb-3">
-          <CardTitle className="text-lg">Invite a member</CardTitle>
+          <CardTitle className="text-lg">{t("admin.inviteMember")}</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <form action={inviteMember} className="flex flex-col gap-3">
-            <Input name="email" type="email" placeholder="Email" required />
+            <Input name="email" type="email" placeholder={t("auth.email")} required />
             <Select name="tenantId" required>
               <SelectTrigger>
-                <SelectValue placeholder="Select a club" />
+                <SelectValue placeholder={t("admin.selectClub")} />
               </SelectTrigger>
               <SelectContent>
                 {clubs.map((c) => (
@@ -50,7 +55,7 @@ export default async function AdminPage() {
                 ))}
               </SelectContent>
             </Select>
-            <Button>Send invite</Button>
+            <Button>{t("admin.sendInvite")}</Button>
           </form>
         </CardContent>
       </Card>

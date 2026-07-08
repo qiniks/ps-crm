@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { LanguageProvider } from "@/lib/i18n/LanguageProvider";
 
 const { signInWithPassword } = vi.hoisted(() => ({ signInWithPassword: vi.fn() }));
 const { push, refresh } = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }));
@@ -14,10 +15,19 @@ vi.mock("next/navigation", () => ({
 
 import LoginPage from "./page";
 
+function renderLoginPage() {
+  return render(
+    <LanguageProvider>
+      <LoginPage />
+    </LanguageProvider>
+  );
+}
+
 beforeEach(() => {
   signInWithPassword.mockReset();
   push.mockReset();
   refresh.mockReset();
+  localStorage.setItem("ps-crm.locale", "en");
 });
 
 describe("LoginPage", () => {
@@ -25,7 +35,7 @@ describe("LoginPage", () => {
     signInWithPassword.mockResolvedValue({ error: { message: "Invalid login credentials" } });
     const user = userEvent.setup();
 
-    render(<LoginPage />);
+    renderLoginPage();
     await user.type(screen.getByPlaceholderText("Email"), "owner@example.com");
     await user.type(screen.getByPlaceholderText("Password"), "wrong-password");
     await user.click(screen.getByRole("button", { name: /sign in/i }));
@@ -38,7 +48,7 @@ describe("LoginPage", () => {
     signInWithPassword.mockResolvedValue({ error: null });
     const user = userEvent.setup();
 
-    render(<LoginPage />);
+    renderLoginPage();
     await user.type(screen.getByPlaceholderText("Email"), "owner@example.com");
     await user.type(screen.getByPlaceholderText("Password"), "correct-password");
     await user.click(screen.getByRole("button", { name: /sign in/i }));
