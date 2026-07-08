@@ -11,6 +11,7 @@ import { formatMoney } from "@/lib/format";
 import { PageHeader } from "@/components/ui-patterns/page-header";
 import { EmptyState } from "@/components/ui-patterns/empty-state";
 import { ErrorState } from "@/components/ui-patterns/error-state";
+import { ShiftCard } from "@/components/shift/ShiftCard";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -102,6 +103,8 @@ export default function ClubPage() {
         subtitle={t("club.rooms")}
         actions={<Button onClick={() => setOpen(true)}>+ {t("club.addRoom")}</Button>}
       />
+
+      <ShiftCard clubId={clubId} />
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>

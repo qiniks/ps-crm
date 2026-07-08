@@ -12,14 +12,16 @@ datasource db {
 
 // A PlayStation club. Everything below belongs to exactly one tenant.
 model Tenant {
-  id          String       @id @default(cuid())
-  name        String
-  createdAt   DateTime     @default(now())
-  rooms       Room[]
-  stations    Station[]
-  customers   Customer[]
-  sessions    Session[]
-  memberships Membership[]
+  id           String        @id @default(cuid())
+  name         String
+  createdAt    DateTime      @default(now())
+  rooms        Room[]
+  stations     Station[]
+  customers    Customer[]
+  sessions     Session[]
+  memberships  Membership[]
+  shifts       Shift[]
+  reservations Reservation[]
 }
 
 // A room inside a club (e.g. "Standard hall", "VIP room").
@@ -43,17 +45,18 @@ model Room {
 // A physical PlayStation placed on the room's floor plan.
 // posX / posY are percentages (0..100) of the room canvas, so the layout is responsive.
 model Station {
-  id       String    @id @default(cuid())
-  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  tenantId String
-  room     Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  roomId   String
-  name     String
-  type     String    @default("PS5") // PS4 | PS5
-  status   String    @default("FREE") // FREE | BUSY | MAINTENANCE
-  posX     Float     @default(50)
-  posY     Float     @default(50)
-  sessions Session[]
+  id           String        @id @default(cuid())
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId     String
+  room         Room          @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  roomId       String
+  name         String
+  type         String        @default("PS5") // PS4 | PS5
+  status       String        @default("FREE") // FREE | BUSY | MAINTENANCE
+  posX         Float         @default(50)
+  posY         Float         @default(50)
+  sessions     Session[]
+  reservations Reservation[]
 
   @@index([roomId])
   @@index([tenantId])
@@ -61,15 +64,16 @@ model Station {
 
 // A club customer (optional on a booking).
 model Customer {
-  id          String    @id @default(cuid())
-  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  tenantId    String
-  name        String
-  phone       String?
-  balance     Int       @default(0)
-  bonusPoints Int       @default(0)
-  createdAt   DateTime  @default(now())
-  sessions    Session[]
+  id           String        @id @default(cuid())
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId     String
+  name         String
+  phone        String?
+  balance      Int           @default(0)
+  bonusPoints  Int           @default(0)
+  createdAt    DateTime      @default(now())
+  sessions     Session[]
+  reservations Reservation[]
 
   @@index([tenantId])
 }
@@ -79,22 +83,71 @@ model Customer {
 // For fixed tariffs cost is set at booking and plannedEndAt is filled.
 // For OPEN, cost is computed on stop from elapsed time * room.openHourlyRate.
 model Session {
-  id           String    @id @default(cuid())
-  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  tenantId     String
-  station      Station   @relation(fields: [stationId], references: [id], onDelete: Cascade)
-  stationId    String
-  customer     Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  customerId   String?
-  tariffKind   String
-  startedAt    DateTime  @default(now())
-  plannedEndAt DateTime?
-  endedAt      DateTime?
-  cost         Int       @default(0)
-  status       String    @default("ACTIVE") // ACTIVE | FINISHED
+  id            String    @id @default(cuid())
+  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId      String
+  station       Station   @relation(fields: [stationId], references: [id], onDelete: Cascade)
+  stationId     String
+  customer      Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customerId    String?
+  tariffKind    String
+  startedAt     DateTime  @default(now())
+  plannedEndAt  DateTime?
+  endedAt       DateTime?
+  cost          Int       @default(0)
+  status        String    @default("ACTIVE") // ACTIVE | FINISHED
+  // How the finished session was paid: CASH | CARD (null until stopped,
+  // or for sessions finished before payment tracking existed).
+  paymentMethod String?
+  // The cash-register shift the payment landed in (null when no shift was open).
+  shift         Shift?    @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  shiftId       String?
 
   @@index([tenantId])
   @@index([stationId])
+  @@index([shiftId])
+}
+
+// A cash-register shift: a seller opens it with the cash in the drawer and
+// closes it with the counted amount; expected cash is derived from the cash
+// payments recorded while it was open.
+model Shift {
+  id          String    @id @default(cuid())
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId    String
+  openedById  String // Supabase auth.users.id — not an FK, different schema
+  openedBy    String // email snapshot, shown in history even if the user is deleted
+  openedAt    DateTime  @default(now())
+  closedAt    DateTime?
+  openingCash Int       @default(0)
+  // Counted at close; null while the shift is open.
+  closingCash Int?
+  status      String    @default("OPEN") // OPEN | CLOSED
+  sessions    Session[]
+
+  @@index([tenantId, status])
+}
+
+// An advance booking of a station for a future start time. Only fixed
+// tariffs (known duration) can be reserved, so overlaps are computable.
+model Reservation {
+  id         String    @id @default(cuid())
+  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId   String
+  station    Station   @relation(fields: [stationId], references: [id], onDelete: Cascade)
+  stationId  String
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customerId String?
+  // Free-text name for walk-ins who aren't in the customer list.
+  guestName  String?
+  tariffKind String // HOUR_1 | HOUR_3 | HOUR_5
+  startAt    DateTime
+  endAt      DateTime // startAt + tariff duration, denormalized for overlap queries
+  status     String    @default("BOOKED") // BOOKED | SEATED | CANCELLED
+  createdAt  DateTime  @default(now())
+
+  @@index([tenantId])
+  @@index([stationId, status])
 }
 
 model Membership {
