@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSessionUser } from "./session";
+import { getEffectiveUserId } from "./impersonation";
 import { resolveMembershipAccess } from "./membership";
 
 type MembershipResult = { ok: true; userId: string } | { ok: false; response: NextResponse };
@@ -10,17 +10,19 @@ type MembershipResult = { ok: true; userId: string } | { ok: false; response: Ne
 // clubId-prefixed routes it comes straight from the URL; for routes shaped
 // around a room/station/session, look up that resource's own tenantId column
 // (every one of those models carries it directly, see prisma/schema.prisma).
+// Membership is checked against the effective user, so an impersonating
+// admin gets exactly the access of the user they're viewing as.
 export async function requireMembership(tenantId: string): Promise<MembershipResult> {
-  const user = await getSessionUser();
+  const userId = await getEffectiveUserId();
 
-  const memberships = user
+  const memberships = userId
     ? await prisma.membership.findMany({
-        where: { userId: user.id },
+        where: { userId },
         select: { tenantId: true },
       })
     : [];
 
-  const access = resolveMembershipAccess(user?.id ?? null, memberships, tenantId);
+  const access = resolveMembershipAccess(userId, memberships, tenantId);
 
   if (access === "unauthenticated") {
     return {
@@ -36,5 +38,5 @@ export async function requireMembership(tenantId: string): Promise<MembershipRes
       response: NextResponse.json({ error: "Not found" }, { status: 404 }),
     };
   }
-  return { ok: true, userId: user!.id };
+  return { ok: true, userId: userId! };
 }

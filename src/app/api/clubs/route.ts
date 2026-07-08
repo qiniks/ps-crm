@@ -1,18 +1,19 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSessionUser } from "@/lib/auth/session";
+import { getEffectiveUserId } from "@/lib/auth/impersonation";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/clubs — clubs the current user is a member of, with room counts.
+// GET /api/clubs — clubs the current (effective) user is a member of, with
+// room counts. When the admin impersonates someone, they see that user's clubs.
 export async function GET() {
-  const user = await getSessionUser();
-  if (!user) {
+  const userId = await getEffectiveUserId();
+  if (!userId) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
   const memberships = await prisma.membership.findMany({
-    where: { userId: user.id },
+    where: { userId },
     select: { tenantId: true },
   });
 
