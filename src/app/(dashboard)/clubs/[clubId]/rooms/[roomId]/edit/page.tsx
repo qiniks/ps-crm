@@ -420,6 +420,39 @@ export default function RoomEditPage() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="mb-4 space-y-1.5">
+              <Label className="text-xs text-muted-foreground">{t("editor.status")}</Label>
+              <div>
+                <span
+                  className={cn(
+                    "inline-block rounded-full px-2 py-0.5 text-[11px] font-medium",
+                    selected.status === "MAINTENANCE"
+                      ? "bg-warning/15 text-warning"
+                      : selected.status === "BUSY"
+                      ? "bg-success/15 text-success"
+                      : "bg-muted text-muted-foreground"
+                  )}
+                >
+                  {selected.status === "MAINTENANCE"
+                    ? t("station.maintenance")
+                    : selected.status === "BUSY"
+                    ? t("station.busy")
+                    : t("station.free")}
+                </span>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full"
+                onClick={() =>
+                  patchSelected({
+                    status: selected.status === "MAINTENANCE" ? "FREE" : "MAINTENANCE",
+                  })
+                }
+              >
+                {selected.status === "MAINTENANCE" ? t("editor.markAvailable") : t("editor.markMaintenance")}
+              </Button>
+            </div>
             <Button variant="destructive" className="w-full" onClick={removeSelected}>
               {t("editor.remove")}
             </Button>
