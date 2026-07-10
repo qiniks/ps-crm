@@ -25,9 +25,11 @@ export async function GET(req: NextRequest) {
 
   const { skip, take, search, page, pageSize } = parseListParams(req.nextUrl.searchParams);
 
+  // Archived (soft-deleted) clubs are excluded — see DELETE /api/clubs/[clubId].
   // See the customers route for the `mode: "insensitive"` Postgres caveat.
   const where: Prisma.TenantWhereInput = {
     id: { in: memberships.map((m) => m.tenantId) },
+    archivedAt: null,
     ...(search ? { name: { contains: search, mode: "insensitive" } } : {}),
   };
 

@@ -25,6 +25,19 @@ export async function createClub(formData: FormData) {
   revalidatePath("/admin");
 }
 
+// Undo an accidental club archive (see DELETE /api/clubs/[clubId]). Only the
+// admin can do this — regular members lose sight of the club the moment it's
+// archived, since it drops out of GET /api/clubs, so the admin panel (which
+// reads Tenant directly, archived or not) is the only place left to reach it.
+export async function restoreClub(formData: FormData) {
+  await requireAdmin();
+  const tenantId = String(formData.get("tenantId") ?? "").trim();
+  if (!tenantId) return;
+
+  await prisma.tenant.update({ where: { id: tenantId }, data: { archivedAt: null } });
+  revalidatePath("/admin");
+}
+
 export async function inviteMember(formData: FormData) {
   await requireAdmin();
   const email = String(formData.get("email") ?? "").trim();

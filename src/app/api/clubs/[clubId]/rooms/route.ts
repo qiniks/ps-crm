@@ -14,8 +14,11 @@ export async function GET(
   if (!auth.ok) return auth.response;
 
   const club = await prisma.tenant.findUniqueOrThrow({ where: { id: clubId } });
+  // Archived rooms are soft-deleted (see /api/rooms/[roomId] DELETE) and
+  // hidden from the normal room list — their historical sessions stay in
+  // the DB for reporting, they just no longer show up here.
   const rooms = await prisma.room.findMany({
-    where: { tenantId: clubId },
+    where: { tenantId: clubId, archivedAt: null },
     orderBy: { createdAt: "asc" },
     include: { _count: { select: { stations: true } } },
   });

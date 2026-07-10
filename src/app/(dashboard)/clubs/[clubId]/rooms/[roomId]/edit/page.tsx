@@ -2,10 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useParams, useRouter } from "next/navigation";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { IconArrowLeft, IconCheck } from "@tabler/icons-react";
+import { IconArrowLeft, IconCheck, IconTrash } from "@tabler/icons-react";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
 import { formatMoney } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 type EditStation = { id: string; name: string; type: string; status: string; posX: number; posY: number };
@@ -80,10 +81,22 @@ async function saveLayoutRequest(roomId: string, positions: { id: string; posX: 
   return res.json();
 }
 
+async function deleteRoomRequest(roomId: string) {
+  const res = await fetch(`/api/rooms/${roomId}`, { method: "DELETE" });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(typeof body.error === "string" ? body.error : `DELETE room failed: ${res.status}`);
+  }
+  return res.json();
+}
+
 export default function RoomEditPage() {
   const { t } = useI18n();
   const { clubId, roomId } = useParams<{ clubId: string; roomId: string }>();
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const canvasRef = useRef<HTMLDivElement>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const { data } = useQuery({ queryKey: ["room-edit", roomId], queryFn: () => fetchRoom(roomId) });
 
@@ -261,6 +274,21 @@ export default function RoomEditPage() {
     saveLayoutMutation.mutate();
   }
 
+  const deleteRoomMutation = useMutation({
+    mutationFn: () => deleteRoomRequest(roomId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["rooms", clubId] });
+      toast.success(t("room.archived"));
+      router.push(`/clubs/${clubId}`);
+    },
+    onError: (error: Error) => {
+      setConfirmingDelete(false);
+      toast.error(
+        error.message === "room-has-active-session" ? t("room.deleteBlockedSession") : t("common.error")
+      );
+    },
+  });
+
   const selected = stations.find((s) => s.id === selectedId) ?? null;
 
   return (
@@ -291,6 +319,15 @@ export default function RoomEditPage() {
             ) : (
               t("editor.save")
             )}
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+            aria-label={t("room.delete")}
+            onClick={() => setConfirmingDelete(true)}
+          >
+            <IconTrash className="h-4 w-4" />
           </Button>
         </div>
       </header>
@@ -459,6 +496,27 @@ export default function RoomEditPage() {
           </Card>
         )}
       </div>
+
+      <Dialog open={confirmingDelete} onOpenChange={setConfirmingDelete}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("room.deleteConfirmTitle")}</DialogTitle>
+            <DialogDescription>{t("room.deleteConfirmBody")}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setConfirmingDelete(false)}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={deleteRoomMutation.isPending}
+              onClick={() => deleteRoomMutation.mutate()}
+            >
+              {t("common.delete")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

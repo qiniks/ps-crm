@@ -15,6 +15,11 @@ model Tenant {
   id           String        @id @default(cuid())
   name         String
   createdAt    DateTime      @default(now())
+  // Soft-delete marker: set instead of hard-deleting so historical Sessions/
+  // Shifts/Reservations (Prisma cascades on Tenant→everything) survive for
+  // reporting. Null = active. Archived tenants are excluded from the normal
+  // club listing (see /api/clubs) but stay in the DB for the admin panel.
+  archivedAt   DateTime?
   rooms        Room[]
   stations     Station[]
   customers    Customer[]
@@ -37,6 +42,10 @@ model Room {
   price5h        Int       @default(0) // fixed price for the 5-hour tariff
   openHourlyRate Int       @default(0) // per-hour rate for the "open / until done" tariff
   createdAt      DateTime  @default(now())
+  // Soft-delete marker, same reasoning as Tenant.archivedAt: Room→Station
+  // cascades to Session/Reservation, so archiving (not deleting) keeps a
+  // room's play history intact for reports. Null = active.
+  archivedAt     DateTime?
   stations       Station[]
 
   @@index([tenantId])

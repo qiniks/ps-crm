@@ -22,6 +22,7 @@ CREATE TABLE "Tenant" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "archivedAt" TIMESTAMP(3),
 
     CONSTRAINT "Tenant_pkey" PRIMARY KEY ("id")
 );
@@ -36,6 +37,7 @@ CREATE TABLE "Room" (
     "price5h" INTEGER NOT NULL DEFAULT 0,
     "openHourlyRate" INTEGER NOT NULL DEFAULT 0,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "archivedAt" TIMESTAMP(3),
 
     CONSTRAINT "Room_pkey" PRIMARY KEY ("id")
 );

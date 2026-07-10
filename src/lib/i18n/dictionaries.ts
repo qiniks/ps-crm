@@ -69,6 +69,9 @@ export const dictionaries = {
     "admin.impersonating": "Просмотр от имени",
     "admin.unknownUser": "неизвестный пользователь",
     "admin.exitImpersonation": "Выйти из просмотра",
+    "admin.archivedClubs": "Архивные клубы",
+    "admin.archivedBadge": "В архиве",
+    "admin.restore": "Восстановить",
 
     "nav.members": "Команда",
     "members.title": "Команда",
@@ -96,6 +99,12 @@ export const dictionaries = {
     "clubs.empty": "У вас пока нет клубов",
     "clubs.roomsCount": "залов",
     "clubs.searchPlaceholder": "Поиск по названию клуба",
+    "clubs.delete": "Удалить клуб",
+    "clubs.deleteConfirmTitle": "Удалить клуб?",
+    "clubs.deleteConfirmBody": "Клуб исчезнет из списка клубов. История сессий, смен и броней сохранится и её сможет восстановить администратор.",
+    "clubs.archived": "Клуб удалён",
+    "clubs.deleteBlockedSession": "Нельзя удалить: на одной из приставок клуба идёт активная сессия",
+    "clubs.deleteBlockedShift": "Нельзя удалить: в клубе открыта кассовая смена",
 
     "club.rooms": "Залы",
     "club.addRoom": "Добавить зал",
@@ -103,6 +112,12 @@ export const dictionaries = {
     "club.noRooms": "В этом клубе пока нет залов",
     "club.roomCreated": "Зал создан",
     "club.stationsCount": "приставок",
+
+    "room.delete": "Удалить зал",
+    "room.deleteConfirmTitle": "Удалить зал?",
+    "room.deleteConfirmBody": "Зал исчезнет из списка. История его сессий и броней сохранится.",
+    "room.archived": "Зал удалён",
+    "room.deleteBlockedSession": "Нельзя удалить: на одной из приставок зала идёт активная сессия",
 
     "room.pricing": "Тарифы зала",
     "room.price1h": "1 час",
@@ -298,6 +313,9 @@ export const dictionaries = {
     "admin.impersonating": "Viewing as",
     "admin.unknownUser": "unknown user",
     "admin.exitImpersonation": "Exit view",
+    "admin.archivedClubs": "Archived clubs",
+    "admin.archivedBadge": "Archived",
+    "admin.restore": "Restore",
 
     "nav.members": "Team",
     "members.title": "Team",
@@ -325,6 +343,12 @@ export const dictionaries = {
     "clubs.empty": "You don't have any clubs yet",
     "clubs.roomsCount": "rooms",
     "clubs.searchPlaceholder": "Search by club name",
+    "clubs.delete": "Delete club",
+    "clubs.deleteConfirmTitle": "Delete this club?",
+    "clubs.deleteConfirmBody": "The club will disappear from the club list. Its session, shift and reservation history is kept and an admin can restore it later.",
+    "clubs.archived": "Club deleted",
+    "clubs.deleteBlockedSession": "Can't delete: a station in this club has an active session",
+    "clubs.deleteBlockedShift": "Can't delete: this club has an open cash-register shift",
 
     "club.rooms": "Rooms",
     "club.addRoom": "Add room",
@@ -332,6 +356,12 @@ export const dictionaries = {
     "club.noRooms": "This club has no rooms yet",
     "club.roomCreated": "Room created",
     "club.stationsCount": "consoles",
+
+    "room.delete": "Delete room",
+    "room.deleteConfirmTitle": "Delete this room?",
+    "room.deleteConfirmBody": "The room will disappear from the list. Its session and reservation history is kept.",
+    "room.archived": "Room deleted",
+    "room.deleteBlockedSession": "Can't delete: a station in this room has an active session",
 
     "room.pricing": "Room tariffs",
     "room.price1h": "1 hour",
