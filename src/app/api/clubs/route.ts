@@ -17,8 +17,9 @@ export async function GET() {
     select: { tenantId: true },
   });
 
+  // Archived (soft-deleted) clubs are excluded — see DELETE /api/clubs/[clubId].
   const clubs = await prisma.tenant.findMany({
-    where: { id: { in: memberships.map((m) => m.tenantId) } },
+    where: { id: { in: memberships.map((m) => m.tenantId) }, archivedAt: null },
     orderBy: { createdAt: "asc" },
     include: { _count: { select: { rooms: true } } },
   });

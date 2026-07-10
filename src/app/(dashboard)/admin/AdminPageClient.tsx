@@ -8,9 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
-import type { createClub as CreateClub, impersonateUser as ImpersonateUser, inviteMember as InviteMember } from "./actions";
+import type {
+  createClub as CreateClub,
+  impersonateUser as ImpersonateUser,
+  inviteMember as InviteMember,
+  restoreClub as RestoreClub,
+} from "./actions";
 
-type Club = { id: string; name: string };
+type Club = { id: string; name: string; archivedAt: Date | null };
 
 export type AdminUserRow = {
   id: string;
@@ -26,14 +31,18 @@ export function AdminPageClient({
   createClub,
   inviteMember,
   impersonateUser,
+  restoreClub,
 }: {
   clubs: Club[];
   users: AdminUserRow[];
   createClub: typeof CreateClub;
   inviteMember: typeof InviteMember;
   impersonateUser: typeof ImpersonateUser;
+  restoreClub: typeof RestoreClub;
 }) {
   const { t, locale } = useI18n();
+  const activeClubs = clubs.filter((c) => !c.archivedAt);
+  const archivedClubs = clubs.filter((c) => c.archivedAt);
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -64,7 +73,7 @@ export function AdminPageClient({
                   <SelectValue placeholder={t("admin.selectClub")} />
                 </SelectTrigger>
                 <SelectContent>
-                  {clubs.map((c) => (
+                  {activeClubs.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {c.name}
                     </SelectItem>
@@ -76,6 +85,42 @@ export function AdminPageClient({
           </CardContent>
         </Card>
       </div>
+
+      {archivedClubs.length > 0 && (
+        <>
+          <h2 className="mb-3 text-lg font-semibold text-foreground">{t("admin.archivedClubs")}</h2>
+          <div className="mb-8 overflow-hidden rounded-xl border border-border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t("clubs.name")}</TableHead>
+                  <TableHead className="text-right">{t("admin.actions")}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {archivedClubs.map((c) => (
+                  <TableRow key={c.id}>
+                    <TableCell className="text-foreground">
+                      {c.name}
+                      <Badge variant="secondary" className="ml-2">
+                        {t("admin.archivedBadge")}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <form action={restoreClub} className="inline-flex">
+                        <input type="hidden" name="tenantId" value={c.id} />
+                        <Button size="sm" variant="outline">
+                          {t("admin.restore")}
+                        </Button>
+                      </form>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </>
+      )}
 
       <h2 className="mb-3 text-lg font-semibold text-foreground">{t("admin.users")}</h2>
       <div className="overflow-hidden rounded-xl border border-border">
