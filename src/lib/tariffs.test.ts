@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fixedPrice, liveCost, openCost, tariffHours } from "./tariffs";
+import { fixedPrice, isSessionEndingSoon, liveCost, openCost, tariffHours } from "./tariffs";
 
 const room = { price1h: 150, price3h: 400, price5h: 600, openHourlyRate: 150 };
 
@@ -63,5 +63,39 @@ describe("liveCost", () => {
     const startedAt = "2026-07-08T10:00:00.000Z";
     const now = new Date("2026-07-08T11:00:00.000Z").getTime();
     expect(liveCost({ tariffKind: "OPEN", startedAt }, room, now)).toBe(150);
+  });
+});
+
+describe("isSessionEndingSoon", () => {
+  const plannedEndAt = new Date(2026, 6, 8, 12, 0);
+
+  it("is false when well before the planned end", () => {
+    const now = new Date(2026, 6, 8, 11, 0);
+    expect(isSessionEndingSoon(plannedEndAt, now, 5 * 60_000)).toBe(false);
+  });
+
+  it("is true within the threshold before the planned end", () => {
+    const now = new Date(2026, 6, 8, 11, 57);
+    expect(isSessionEndingSoon(plannedEndAt, now, 5 * 60_000)).toBe(true);
+  });
+
+  it("is true exactly at the threshold boundary", () => {
+    const now = new Date(2026, 6, 8, 11, 55);
+    expect(isSessionEndingSoon(plannedEndAt, now, 5 * 60_000)).toBe(true);
+  });
+
+  it("is true exactly at the planned end (still not overtime)", () => {
+    expect(isSessionEndingSoon(plannedEndAt, plannedEndAt, 5 * 60_000)).toBe(true);
+  });
+
+  it("is false once the session is already overtime", () => {
+    const now = new Date(2026, 6, 8, 12, 1);
+    expect(isSessionEndingSoon(plannedEndAt, now, 5 * 60_000)).toBe(false);
+  });
+
+  it("accepts a plannedEndAt string and a now timestamp, same as the API DTOs use", () => {
+    const end = "2026-07-08T12:00:00.000Z";
+    const now = new Date("2026-07-08T11:58:00.000Z").getTime();
+    expect(isSessionEndingSoon(end, now, 5 * 60_000)).toBe(true);
   });
 });

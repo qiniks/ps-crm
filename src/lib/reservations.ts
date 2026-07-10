@@ -39,3 +39,18 @@ export function validateReservationStart(startAt: Date, now: Date): ReservationT
   if (startAt.getTime() > now.getTime() + MAX_ADVANCE_DAYS * 86_400_000) return "too-far";
   return null;
 }
+
+// Default "imminent" alert window for a reservation's start time.
+export const RESERVATION_IMMINENT_MS = 15 * 60_000;
+
+// True if a reservation hasn't started yet, but will within `thresholdMs`.
+// Once the start time has passed this returns false — the seat/no-show flow
+// handles that case, not this alert.
+export function isReservationImminent(
+  startAt: Date | string,
+  now: Date | number,
+  thresholdMs: number = RESERVATION_IMMINENT_MS
+): boolean {
+  const until = new Date(startAt).getTime() - new Date(now).getTime();
+  return until >= 0 && until <= thresholdMs;
+}

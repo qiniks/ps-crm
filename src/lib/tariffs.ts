@@ -35,6 +35,21 @@ export function tariffHours(kind: TariffKind): number | null {
   return TARIFFS.find((t) => t.kind === kind)?.hours ?? null;
 }
 
+// Default "ending soon" alert window for a fixed-tariff session.
+export const SESSION_ENDING_SOON_MS = 5 * 60_000;
+
+// True if a fixed-tariff session hasn't reached its planned end yet, but will
+// within `thresholdMs`. Once the session is already overtime (remaining < 0)
+// this returns false — that state gets its own distinct treatment.
+export function isSessionEndingSoon(
+  plannedEndAt: Date | string,
+  now: Date | number,
+  thresholdMs: number = SESSION_ENDING_SOON_MS
+): boolean {
+  const remaining = new Date(plannedEndAt).getTime() - new Date(now).getTime();
+  return remaining >= 0 && remaining <= thresholdMs;
+}
+
 // Final cost of an OPEN session from elapsed time and the room's hourly rate.
 export function openCost(startedAt: Date, endedAt: Date, openHourlyRate: number): number {
   const hours = (endedAt.getTime() - startedAt.getTime()) / 3_600_000;

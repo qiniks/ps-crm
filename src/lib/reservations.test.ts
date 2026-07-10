@@ -3,6 +3,7 @@ import {
   bookingWindow,
   findConflict,
   intervalsOverlap,
+  isReservationImminent,
   validateReservationStart,
 } from "./reservations";
 
@@ -66,5 +67,35 @@ describe("validateReservationStart", () => {
 
   it("accepts a valid future start", () => {
     expect(validateReservationStart(at(18), now)).toBeNull();
+  });
+});
+
+describe("isReservationImminent", () => {
+  const startAt = at(12, 0);
+
+  it("is false when well before the start time", () => {
+    expect(isReservationImminent(startAt, at(11, 0), 15 * 60_000)).toBe(false);
+  });
+
+  it("is true within the threshold before the start time", () => {
+    expect(isReservationImminent(startAt, at(11, 50), 15 * 60_000)).toBe(true);
+  });
+
+  it("is true exactly at the threshold boundary", () => {
+    expect(isReservationImminent(startAt, at(11, 45), 15 * 60_000)).toBe(true);
+  });
+
+  it("is true exactly at the start time", () => {
+    expect(isReservationImminent(startAt, startAt, 15 * 60_000)).toBe(true);
+  });
+
+  it("is false once the reservation's start has already passed", () => {
+    expect(isReservationImminent(startAt, at(12, 1), 15 * 60_000)).toBe(false);
+  });
+
+  it("accepts a startAt string and a now timestamp, same as the API DTOs use", () => {
+    const start = "2026-07-08T12:00:00.000Z";
+    const now = new Date("2026-07-08T11:50:00.000Z").getTime();
+    expect(isReservationImminent(start, now, 15 * 60_000)).toBe(true);
   });
 });

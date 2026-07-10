@@ -23,3 +23,17 @@ export function expectedCash(openingCash: number, payments: Payment[]): number {
 export function cashDifference(expected: number, countedCash: number): number {
   return countedCash - expected;
 }
+
+// Default "open too long" alert window for a cash-register shift.
+export const SHIFT_OPEN_TOO_LONG_MS = 12 * 60 * 60_000;
+
+// True if a shift opened at `openedAt` has been open for at least
+// `thresholdMs` as of `now`. Callers only call this for shifts that are
+// still OPEN — a closed shift's duration isn't an ongoing alert.
+export function isShiftOpenTooLong(
+  openedAt: Date | string,
+  now: Date | number,
+  thresholdMs: number = SHIFT_OPEN_TOO_LONG_MS
+): boolean {
+  return new Date(now).getTime() - new Date(openedAt).getTime() >= thresholdMs;
+}
