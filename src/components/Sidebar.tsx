@@ -7,6 +7,7 @@ import {
   IconChartHistogram,
   IconDeviceGamepad2,
   IconLogout,
+  IconShieldLock,
   IconUsers,
   type Icon,
 } from "@tabler/icons-react";
@@ -18,7 +19,7 @@ import { cn } from "@/lib/utils";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { TranslationKey } from "@/lib/i18n/dictionaries";
 
-export function Sidebar() {
+export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const { t } = useI18n();
@@ -35,6 +36,10 @@ export function Sidebar() {
         { href: `/clubs/${clubId}/analytics`, key: "nav.analytics", icon: IconChartHistogram },
       ]
     : [{ href: "/clubs", key: "nav.clubs", icon: IconDeviceGamepad2 }];
+
+  if (isAdmin) {
+    items.push({ href: "/admin", key: "nav.admin", icon: IconShieldLock });
+  }
 
   async function signOut() {
     const supabase = createSupabaseBrowserClient();
