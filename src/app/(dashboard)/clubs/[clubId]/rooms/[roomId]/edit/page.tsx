@@ -7,6 +7,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { IconArrowLeft, IconCheck } from "@tabler/icons-react";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
+import { formatMoney } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,11 +16,29 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 
 type EditStation = { id: string; name: string; type: string; status: string; posX: number; posY: number };
-type RoomEditData = { name: string; stations: EditStation[] };
+type RoomEditData = {
+  name: string;
+  price1h: number;
+  price3h: number;
+  price5h: number;
+  openHourlyRate: number;
+  stations: EditStation[];
+};
+type RoomPricePatch = Partial<{ name: string; price1h: number; price3h: number; price5h: number; openHourlyRate: number }>;
 
 async function fetchRoom(roomId: string): Promise<RoomEditData> {
   const res = await fetch(`/api/rooms/${roomId}`, { cache: "no-store" });
   if (!res.ok) throw new Error(`GET room failed: ${res.status}`);
+  return res.json();
+}
+
+async function patchRoomRequest(roomId: string, patch: RoomPricePatch) {
+  const res = await fetch(`/api/rooms/${roomId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) throw new Error(`PATCH room failed: ${res.status}`);
   return res.json();
 }
 
@@ -74,17 +93,81 @@ export default function RoomEditPage() {
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const [newName, setNewName] = useState("");
   const [newType, setNewType] = useState("PS5");
+  const [editingPrices, setEditingPrices] = useState(false);
+  const [roomForm, setRoomForm] = useState({
+    name: "",
+    price1h: "",
+    price3h: "",
+    price5h: "",
+    openHourlyRate: "",
+  });
 
   // Seed local editable state from the query once it loads. Deliberately not
   // re-synced on every refetch — during a drag, `stations` is client-
   // authoritative (see the mutations below), and this query has no polling
   // and no invalidation, so this effect only ever fires once per room visit.
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time seed from server data into client-authoritative drag state; see comment above.
-    if (data) setStations(data.stations);
+    if (data) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time seed from server data into client-authoritative drag state; see comment above.
+      setStations(data.stations);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time seed, same as above.
+      setRoomForm({
+        name: data.name,
+        price1h: String(data.price1h),
+        price3h: String(data.price3h),
+        price5h: String(data.price5h),
+        openHourlyRate: String(data.openHourlyRate),
+      });
+    }
   }, [data]);
 
   const roomName = data?.name ?? "";
+
+  const patchRoomMutation = useMutation({
+    mutationFn: (patch: RoomPricePatch) => patchRoomRequest(roomId, patch),
+  });
+
+  // Debounce room-field edits so we don't fire a PATCH per keystroke — pending
+  // fields are merged and flushed together after a pause in typing.
+  const pendingRoomPatch = useRef<RoomPricePatch>({});
+  const roomPatchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (roomPatchTimer.current) clearTimeout(roomPatchTimer.current);
+    };
+  }, []);
+
+  function updateRoomField(key: keyof typeof roomForm, value: string) {
+    setRoomForm((f) => ({ ...f, [key]: value }));
+    (pendingRoomPatch.current as Record<string, unknown>)[key] =
+      key === "name" ? value : Math.max(0, Math.round(Number(value) || 0));
+
+    if (roomPatchTimer.current) clearTimeout(roomPatchTimer.current);
+    roomPatchTimer.current = setTimeout(() => {
+      const patch = pendingRoomPatch.current;
+      pendingRoomPatch.current = {};
+      patchRoomMutation.mutate(patch);
+    }, 500);
+  }
+
+  // Send any not-yet-debounced edit immediately, e.g. when the user hits Save.
+  function flushRoomPatch() {
+    if (roomPatchTimer.current) {
+      clearTimeout(roomPatchTimer.current);
+      roomPatchTimer.current = null;
+    }
+    if (Object.keys(pendingRoomPatch.current).length > 0) {
+      const patch = pendingRoomPatch.current;
+      pendingRoomPatch.current = {};
+      patchRoomMutation.mutate(patch);
+    }
+  }
+
+  function closePriceEditor() {
+    flushRoomPatch();
+    setEditingPrices(false);
+  }
 
   // Drag bookkeeping (refs so we don't re-render per mousemove).
   const drag = useRef<{ id: string; moved: boolean } | null>(null);
@@ -104,9 +187,10 @@ export default function RoomEditPage() {
   function onPointerMove(e: React.PointerEvent) {
     if (!drag.current) return;
     drag.current.moved = true;
+    const id = drag.current.id;
     const { x, y } = pointFromEvent(e);
     setStations((prev) =>
-      prev.map((s) => (s.id === drag.current!.id ? { ...s, posX: x, posY: y } : s))
+      prev.map((s) => (s.id === id ? { ...s, posX: x, posY: y } : s))
     );
     setDirty(true);
     setSaveState("idle");
@@ -211,6 +295,63 @@ export default function RoomEditPage() {
         </div>
       </header>
 
+      <Card className="mb-4 p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <div className="text-xs uppercase tracking-wide text-muted-foreground">
+            {t("room.pricing")} ({t("common.currency")})
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => (editingPrices ? closePriceEditor() : setEditingPrices(true))}
+          >
+            {editingPrices ? t("common.save") : t("editor.editPrices")}
+          </Button>
+        </div>
+
+        {editingPrices ? (
+          <>
+            <div className="mb-3 space-y-1.5">
+              <Label className="text-xs text-muted-foreground">{t("club.roomName")}</Label>
+              <Input
+                value={roomForm.name}
+                onChange={(e) => updateRoomField("name", e.target.value)}
+                className="max-w-xs"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <PriceInput
+                label={t("room.price1h")}
+                value={roomForm.price1h}
+                onChange={(v) => updateRoomField("price1h", v)}
+              />
+              <PriceInput
+                label={t("room.price3h")}
+                value={roomForm.price3h}
+                onChange={(v) => updateRoomField("price3h", v)}
+              />
+              <PriceInput
+                label={t("room.price5h")}
+                value={roomForm.price5h}
+                onChange={(v) => updateRoomField("price5h", v)}
+              />
+              <PriceInput
+                label={t("room.priceOpen")}
+                value={roomForm.openHourlyRate}
+                onChange={(v) => updateRoomField("openHourlyRate", v)}
+              />
+            </div>
+          </>
+        ) : (
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            <span>{t("room.price1h")}: {formatMoney(Number(roomForm.price1h) || 0)}</span>
+            <span>{t("room.price3h")}: {formatMoney(Number(roomForm.price3h) || 0)}</span>
+            <span>{t("room.price5h")}: {formatMoney(Number(roomForm.price5h) || 0)}</span>
+            <span>{t("room.priceOpen")}: {formatMoney(Number(roomForm.openHourlyRate) || 0)}</span>
+          </div>
+        )}
+      </Card>
+
       <form onSubmit={addStation} className="mb-4 flex flex-wrap gap-2">
         <Input
           value={newName}
@@ -285,6 +426,23 @@ export default function RoomEditPage() {
           </Card>
         )}
       </div>
+    </div>
+  );
+}
+
+function PriceInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <Input type="number" min="0" value={value} onChange={(e) => onChange(e.target.value)} placeholder="0" />
     </div>
   );
 }

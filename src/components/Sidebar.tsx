@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  IconArrowLeft,
   IconChartBar,
   IconChartHistogram,
   IconDeviceGamepad2,
@@ -50,16 +49,6 @@ export function Sidebar() {
         <div className="text-lg font-bold text-foreground">{t("app.name")}</div>
         <div className="text-xs text-muted-foreground">{t("app.tagline")}</div>
       </Link>
-
-      {clubId && (
-        <Link
-          href="/clubs"
-          className="mb-2 flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
-        >
-          <IconArrowLeft className="h-3.5 w-3.5" />
-          {t("nav.clubs")}
-        </Link>
-      )}
 
       <nav className="flex flex-1 flex-col gap-1">
         {items.map((item) => {

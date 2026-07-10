@@ -99,6 +99,7 @@ export const dictionaries = {
     "editor.saving": "Сохранение…",
     "editor.remove": "Удалить приставку",
     "editor.emptyHint": "Добавьте первую приставку кнопкой выше",
+    "editor.editPrices": "Редактировать тарифы",
 
     "station.free": "Свободна",
     "station.busy": "Занята",
@@ -287,6 +288,7 @@ export const dictionaries = {
     "editor.saving": "Saving…",
     "editor.remove": "Remove console",
     "editor.emptyHint": "Add your first console with the button above",
+    "editor.editPrices": "Edit prices",
 
     "station.free": "Free",
     "station.busy": "Busy",

@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { IconDeviceGamepad2 } from "@tabler/icons-react";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
@@ -20,6 +22,7 @@ async function fetchClubs(): Promise<Club[]> {
 
 export default function ClubsPage() {
   const { t } = useI18n();
+  const router = useRouter();
   const {
     data: clubs = [],
     isLoading,
@@ -27,11 +30,16 @@ export default function ClubsPage() {
     refetch,
   } = useQuery({ queryKey: ["clubs"], queryFn: fetchClubs });
 
+  // Skip the picker entirely when the user only belongs to one club.
+  useEffect(() => {
+    if (clubs.length === 1) router.replace(`/clubs/${clubs[0].id}`);
+  }, [clubs, router]);
+
   return (
     <div className="mx-auto max-w-4xl">
       <PageHeader title={t("clubs.title")} subtitle={t("clubs.subtitle")} />
 
-      {isLoading ? (
+      {isLoading || clubs.length === 1 ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton key={i} className="h-28 rounded-xl" />
