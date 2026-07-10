@@ -28,6 +28,7 @@ revenue — all with a bilingual **Russian / English** UI.
 - **Cash-register shifts** — open a shift with a starting float, watch expected cash live, close it with the counted amount and see the over/short difference
 - **Customers**, **daily reports**, and a **30-day analytics** dashboard (peak hours, revenue by tariff/room, top customers), scoped per club
 - **Admin panel** — create clubs, invite users by email, and impersonate a user to see the app as they would (banner + one-click exit)
+- **Team page** (per club) — a club `OWNER` can invite members with a role (`OWNER`/`CASHIER`), change a member's role, remove them, or revoke a pending invite; `CASHIER`s see a read-only member list
 
 ## Data model
 
@@ -102,15 +103,18 @@ src/
 - Report/analytics day boundaries use the server's local timezone, not a
   per-club timezone — fine for a single-region deployment, not yet safe for
   clubs in different timezones (see `src/lib/time.ts`).
-- `Membership.role` exists in the schema but every member currently has the
-  same access level; only the single hardcoded `ADMIN_EMAIL` super-admin has
-  elevated access.
+- `Membership.role` has two values, `OWNER` and `CASHIER`. Today the only
+  enforced difference is membership management (invite/remove/change-role) on
+  a club's Team page — everything else (booking, shifts, reports, etc.) is
+  still flat access for any member, and the hardcoded `ADMIN_EMAIL`
+  super-admin remains the only cross-club role.
 - Customer `balance` / `bonusPoints` are displayed but not yet editable from
   the app, and booking a session doesn't deduct from them.
 
 ## Roadmap
 
-- Role tiers (owner sees all clubs, cashier sees one) built on `Membership.role`
+- Extend `Membership.role` tiering beyond membership management (e.g. gate
+  shift close / pricing edits to `OWNER`)
 - Assign a booking to a customer's prepaid balance / deduct automatically
 - Bar / snacks POS
 - Customer-facing mobile booking app (React Native) on the same backend
