@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { IconCashRegister } from "@tabler/icons-react";
+import { IconAlertTriangle, IconCashRegister } from "@tabler/icons-react";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
+import { useNow } from "@/lib/useNow";
 import { formatMoney } from "@/lib/format";
+import { isShiftOpenTooLong } from "@/lib/shifts";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -61,6 +63,8 @@ export function ShiftCard({ clubId }: { clubId: string }) {
   const queryClient = useQueryClient();
   const [dialog, setDialog] = useState<"open" | "close" | null>(null);
   const [cashInput, setCashInput] = useState("");
+  // Minute-granularity clock is enough for a multi-hour "open too long" threshold.
+  const now = useNow(60_000);
 
   const { data } = useQuery({ queryKey: ["shifts", clubId], queryFn: () => fetchShifts(clubId) });
 
@@ -83,6 +87,7 @@ export function ShiftCard({ clubId }: { clubId: string }) {
   const current = data?.current ?? null;
   const counted = Math.round(Number(cashInput) || 0);
   const liveDiff = current ? counted - current.expectedCash : 0;
+  const openTooLong = current ? isShiftOpenTooLong(current.openedAt, now) : false;
 
   return (
     <Card className="mb-6 p-5">
@@ -93,7 +98,13 @@ export function ShiftCard({ clubId }: { clubId: string }) {
             <div className="flex items-center gap-2 font-semibold text-foreground">
               {t("shift.title")}
               {current ? (
-                <Badge className="bg-success text-success-foreground hover:bg-success">
+                <Badge
+                  className={cn(
+                    openTooLong
+                      ? "bg-warning text-warning-foreground hover:bg-warning"
+                      : "bg-success text-success-foreground hover:bg-success"
+                  )}
+                >
                   {t("shift.openBadge")}
                 </Badge>
               ) : (
@@ -105,6 +116,12 @@ export function ShiftCard({ clubId }: { clubId: string }) {
                 ? `${current.openedBy} · ${new Date(current.openedAt).toLocaleString(locale)}`
                 : t("shift.noOpenHint")}
             </div>
+            {openTooLong && (
+              <div className="mt-0.5 flex items-center gap-1 text-xs font-medium text-warning">
+                <IconAlertTriangle className="h-3.5 w-3.5" />
+                {t("shift.openTooLong")}
+              </div>
+            )}
           </div>
         </div>
 

@@ -1,9 +1,9 @@
 "use client";
 
-import { IconUser } from "@tabler/icons-react";
+import { IconAlertTriangle, IconUser } from "@tabler/icons-react";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
 import { formatDuration, formatMoney } from "@/lib/format";
-import { liveCost } from "@/lib/tariffs";
+import { isSessionEndingSoon, liveCost } from "@/lib/tariffs";
 import { cn } from "@/lib/utils";
 import type { RoomDTO, StationDTO } from "@/lib/room-types";
 import type { TranslationKey } from "@/lib/i18n/dictionaries";
@@ -25,9 +25,12 @@ export function StationMarker({
   const isBusy = station.status === "BUSY" && sess;
   const isMaint = station.status === "MAINTENANCE";
 
-  // Timer text for busy stations.
-  let timer: { label: string; value: string; danger?: boolean } | null = null;
+  // Timer text for busy stations, plus a distinct "ending soon" state for
+  // fixed-tariff sessions approaching their planned end (before they flip to
+  // the already-established overtime treatment).
+  let timer: { label: string; value: string; state?: "endingSoon" | "overtime" } | null = null;
   let cost = 0;
+  let endingSoon = false;
   if (isBusy && sess) {
     const started = new Date(sess.startedAt).getTime();
     if (sess.tariffKind === "OPEN") {
@@ -35,10 +38,16 @@ export function StationMarker({
       timer = { label: t("station.elapsed"), value: formatDuration(now - started) };
     } else if (sess.plannedEndAt) {
       const remaining = new Date(sess.plannedEndAt).getTime() - now;
-      timer =
-        remaining >= 0
-          ? { label: t("station.remaining"), value: formatDuration(remaining) }
-          : { label: t("station.overtime"), value: formatDuration(-remaining), danger: true };
+      if (remaining >= 0) {
+        endingSoon = isSessionEndingSoon(sess.plannedEndAt, now);
+        timer = {
+          label: endingSoon ? t("station.endingSoon") : t("station.remaining"),
+          value: formatDuration(remaining),
+          state: endingSoon ? "endingSoon" : undefined,
+        };
+      } else {
+        timer = { label: t("station.overtime"), value: formatDuration(-remaining), state: "overtime" };
+      }
     }
   }
 
@@ -50,7 +59,9 @@ export function StationMarker({
       className={cn(
         "absolute w-28 -translate-x-1/2 -translate-y-1/2 rounded-xl border-2 p-2 text-center text-xs shadow-lg transition",
         isBusy
-          ? "border-success bg-success/15"
+          ? endingSoon
+            ? "border-warning bg-warning/15"
+            : "border-success bg-success/15"
           : isMaint
           ? "cursor-not-allowed border-warning bg-warning/10 opacity-70"
           : "cursor-pointer border-border bg-card hover:border-primary hover:bg-primary/10"
@@ -67,10 +78,15 @@ export function StationMarker({
           {timer && (
             <div
               className={cn(
-                "font-mono text-sm tabular-nums",
-                timer.danger ? "text-destructive" : "text-foreground"
+                "flex items-center justify-center gap-1 font-mono text-sm tabular-nums",
+                timer.state === "overtime"
+                  ? "text-destructive"
+                  : timer.state === "endingSoon"
+                  ? "text-warning"
+                  : "text-foreground"
               )}
             >
+              {timer.state === "endingSoon" && <IconAlertTriangle className="h-3 w-3 shrink-0" />}
               {timer.value}
             </div>
           )}

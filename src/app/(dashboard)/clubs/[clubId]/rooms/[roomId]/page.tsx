@@ -106,7 +106,7 @@ export default function RoomViewPage() {
         )}
       </div>
 
-      <ReservationsPanel room={room} />
+      <ReservationsPanel room={room} now={now} />
 
       {booking && (
         <BookingModal
