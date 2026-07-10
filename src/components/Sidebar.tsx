@@ -8,6 +8,7 @@ import {
   IconDeviceGamepad2,
   IconLogout,
   IconShieldLock,
+  IconUserCog,
   IconUsers,
   type Icon,
 } from "@tabler/icons-react";
@@ -34,6 +35,7 @@ export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
         { href: `/clubs/${clubId}/customers`, key: "nav.customers", icon: IconUsers },
         { href: `/clubs/${clubId}/reports`, key: "nav.reports", icon: IconChartBar },
         { href: `/clubs/${clubId}/analytics`, key: "nav.analytics", icon: IconChartHistogram },
+        { href: `/clubs/${clubId}/members`, key: "nav.members", icon: IconUserCog },
       ]
     : [{ href: "/clubs", key: "nav.clubs", icon: IconDeviceGamepad2 }];
 
