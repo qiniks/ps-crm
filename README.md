@@ -1,26 +1,33 @@
 # PS Club CRM 🎮
 
-Multi-tenant CRM for PlayStation gaming clubs (игровые клубы). Manage several
-clubs, lay out rooms with drag-and-drop console placement, and let sellers book
-consoles by tariff — all with a bilingual **Russian / English** UI.
+Multi-tenant booking/POS system for PlayStation gaming clubs (игровые клубы).
+Manage several clubs, lay out rooms with drag-and-drop console placement, book
+consoles by tariff, take reservations, run cash-register shifts, and track
+revenue — all with a bilingual **Russian / English** UI.
 
 ## Stack
 
-- **Next.js 14** (App Router) + **React 18** + **TypeScript** — frontend **and** backend (API routes)
-- **Prisma** ORM on **PostgreSQL** (Supabase). Switch the provider to `sqlite` for local file dev.
-- **Tailwind CSS** dark UI
+- **Next.js 16** (App Router) + **React 19** + **TypeScript** — frontend **and** backend (API routes)
+- **Prisma** ORM on **PostgreSQL** (Supabase), via the `@prisma/adapter-pg` driver adapter. Switch the provider to `sqlite` for local file dev.
+- **Supabase Auth** (`@supabase/ssr`) — email/password login, admin-only invites (no self-signup)
+- **TanStack Query** for client-side data fetching
+- **Tailwind CSS** + shadcn/ui-style components (Radix primitives), light/dark theme
 - Lightweight custom i18n (RU/EN)
+- **Vitest** + Testing Library for tests
 
 ## Features
 
-- **Multiple clubs (tenants)** — run more than one PlayStation club from one app
+- **Multiple clubs (tenants)** — run more than one PlayStation club from one app, access scoped per user via memberships
 - **Rooms** — create rooms per club, each with its **own pricing** (a cheap hall vs a VIP room)
 - **Floor-plan editor** — add consoles and **drag them into place**, then **save the layout**
 - **Booking** — a seller clicks a free console and books it with a tariff:
   - **1 hour / 3 hours / 5 hours** — fixed price taken from the room
   - **Open time** — plays until the client is done, billed by the room's hourly rate on stop
 - **Live floor plan** — busy consoles show a countdown (fixed tariffs) or elapsed time + running cost (open)
-- **Customers** and **daily revenue reports**, scoped per club
+- **Reservations** — book a station for a future time slot, with overlap detection; seat a guest to convert it into a live session
+- **Cash-register shifts** — open a shift with a starting float, watch expected cash live, close it with the counted amount and see the over/short difference
+- **Customers**, **daily reports**, and a **30-day analytics** dashboard (peak hours, revenue by tariff/room, top customers), scoped per club
+- **Admin panel** — create clubs, invite users by email, and impersonate a user to see the app as they would (banner + one-click exit)
 
 ## Data model
 
@@ -28,8 +35,11 @@ consoles by tariff — all with a bilingual **Russian / English** UI.
 Tenant (club)
  ├── Room         (name + price1h / price3h / price5h / openHourlyRate)
  │    └── Station (console: type, status, posX/posY on the floor plan)
- ├── Customer
- └── Session      (booking: tariffKind, startedAt, plannedEndAt, cost, status)
+ ├── Customer     (name, phone, balance, bonusPoints)
+ ├── Session      (booking: tariffKind, startedAt, plannedEndAt, cost, status, paymentMethod, shiftId)
+ ├── Reservation  (future booking: tariffKind, startAt/endAt, status)
+ ├── Shift        (cash-register shift: openingCash, closingCash, status)
+ └── Membership   (userId + role — grants a Supabase user access to this club)
 ```
 
 ## Getting started (local, SQLite)
@@ -55,32 +65,52 @@ npm run dev            # http://localhost:3000
 
 ```
 prisma/
-  schema.prisma        # Tenant, Room, Station, Customer, Session
+  schema.prisma        # Tenant, Room, Station, Customer, Session, Reservation, Shift, Membership
   seed.ts              # demo club, rooms, placed consoles, customers
-supabase-setup.sql     # one-shot table creation + demo data for Supabase
+supabase-setup.sql     # one-shot table creation + demo data for Supabase (kept in sync by hand)
 src/
   app/
-    clubs/                                   # club list + create
-      [clubId]/                              # rooms of a club + create room (pricing)
-        rooms/[roomId]/                      # floor plan — booking view
-          edit/                              # drag-and-drop layout editor
-        customers/  reports/                 # scoped to the club
+    login/  set-password/  auth/callback/    # Supabase auth (invite-only, no self-signup)
+    admin/                                    # super-admin: create clubs, invite users, impersonate
+    clubs/                                    # club list + create
+      [clubId]/                               # rooms of a club + create room (pricing)
+        rooms/[roomId]/                       # floor plan — booking + reservations view
+          edit/                               # drag-and-drop layout editor
+        customers/  reports/  analytics/      # scoped to the club
     api/
-      clubs/ ...                             # clubs, rooms, customers, reports
-      rooms/[roomId]/{stations,layout}/      # add console, save positions
-      stations/[stationId]/                  # rename / retype / delete
-      sessions/ + sessions/[id]/stop/        # book / stop a session
+      clubs/ ...                              # clubs, rooms, customers, reports, analytics
+      rooms/[roomId]/{stations,layout,reservations}/  # add console, save positions, reserve
+      stations/[stationId]/                   # rename / retype / delete
+      sessions/ + sessions/[id]/stop/         # book / stop a session
+      reservations/[id]/                      # cancel / seat a reservation
+      shifts/ + shifts/[id]/close/            # open / close a cash-register shift
+    middleware.ts                             # enforces auth on every non-public route
   components/
-    Sidebar, LanguageSwitcher
-    room/{StationMarker, BookingModal}       # floor-plan pieces
+    Sidebar, LanguageSwitcher, theme-toggle, ImpersonationBanner
+    room/{StationMarker, BookingModal, ReservationsPanel}   # floor-plan pieces
+    shift/ShiftCard
+    analytics/charts.tsx                      # lightweight bar/column charts, no chart library
+    ui/                                        # shadcn-style primitives (button, dialog, table, ...)
   lib/
-    prisma.ts, format.ts, tariffs.ts, useNow.ts, room-types.ts
-    i18n/                                     # RU/EN dictionaries + provider
+    prisma.ts, format.ts, tariffs.ts, reservations.ts, shifts.ts, useNow.ts, room-types.ts
+    auth/                                      # requireMembership, impersonation, membership helpers
+    i18n/                                      # RU/EN dictionaries + provider
 ```
+
+## Known limitations
+
+- Report/analytics day boundaries use the server's local timezone, not a
+  per-club timezone — fine for a single-region deployment, not yet safe for
+  clubs in different timezones (see `src/lib/time.ts`).
+- `Membership.role` exists in the schema but every member currently has the
+  same access level; only the single hardcoded `ADMIN_EMAIL` super-admin has
+  elevated access.
+- Customer `balance` / `bonusPoints` are displayed but not yet editable from
+  the app, and booking a session doesn't deduct from them.
 
 ## Roadmap
 
-- Auth & roles (owner sees all clubs, cashier sees one)
+- Role tiers (owner sees all clubs, cashier sees one) built on `Membership.role`
 - Assign a booking to a customer's prepaid balance / deduct automatically
-- Bar / snacks POS, shift open-close
+- Bar / snacks POS
 - Customer-facing mobile booking app (React Native) on the same backend
