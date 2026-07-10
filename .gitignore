@@ -38,4 +38,7 @@ next-env.d.ts
 # subagent-driven-development scratch (progress ledger, task briefs/reports)
 .superpowers/
 .mcp.json
-.claude/launch.json
+
+# Claude Code runtime state (background-agent worktrees, launch config) —
+# local to this environment, not project source.
+.claude/
