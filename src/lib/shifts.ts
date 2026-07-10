@@ -1,17 +1,17 @@
 // Cash-register shift math, shared by the shift routes and tested in isolation.
 
-export type PaymentMethod = "CASH" | "CARD";
+export type PaymentMethod = "CASH" | "CARD" | "BALANCE";
 
-export const PAYMENT_METHODS: PaymentMethod[] = ["CASH", "CARD"];
+export const PAYMENT_METHODS: PaymentMethod[] = ["CASH", "CARD", "BALANCE"];
 
 export function isPaymentMethod(value: unknown): value is PaymentMethod {
-  return value === "CASH" || value === "CARD";
+  return value === "CASH" || value === "CARD" || value === "BALANCE";
 }
 
 type Payment = { cost: number; paymentMethod: string | null };
 
 // Cash the drawer should hold: what it opened with plus every cash payment
-// recorded during the shift. Card payments never touch the drawer.
+// recorded during the shift. Card and balance payments never touch the drawer.
 export function expectedCash(openingCash: number, payments: Payment[]): number {
   return (
     openingCash +
@@ -36,4 +36,15 @@ export function isShiftOpenTooLong(
   thresholdMs: number = SHIFT_OPEN_TOO_LONG_MS
 ): boolean {
   return new Date(now).getTime() - new Date(openedAt).getTime() >= thresholdMs;
+}
+
+type BalanceCustomer = { balance: number } | null | undefined;
+
+// Whether a session can be paid from a customer's prepaid balance: there must
+// be a customer (a walk-in with no customerId can't pay from balance) and
+// their balance must fully cover the cost — no partial payments, no letting
+// the balance go negative.
+export function canPayFromBalance(customer: BalanceCustomer, cost: number): boolean {
+  if (!customer) return false;
+  return customer.balance >= cost;
 }

@@ -56,7 +56,9 @@ export async function GET(
               tariffKind: sess.tariffKind,
               startedAt: sess.startedAt,
               plannedEndAt: sess.plannedEndAt,
+              customerId: sess.customerId,
               customerName: sess.customer?.name ?? null,
+              customerBalance: sess.customer?.balance ?? null,
             }
           : null,
       };

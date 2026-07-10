@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { IconSearch, IconUsers } from "@tabler/icons-react";
+import { IconEdit, IconSearch, IconTrash, IconUsers } from "@tabler/icons-react";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
 import { formatMoney } from "@/lib/format";
 import { DEFAULT_PAGE_SIZE } from "@/lib/listParams";
@@ -13,8 +13,10 @@ import { EmptyState } from "@/components/ui-patterns/empty-state";
 import { ErrorState } from "@/components/ui-patterns/error-state";
 import { Pagination } from "@/components/ui-patterns/pagination";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 type Customer = { id: string; name: string; phone: string | null; balance: number; bonusPoints: number };
 type CustomersResponse = { items: Customer[]; total: number; page: number; pageSize: number };
@@ -37,6 +39,24 @@ async function createCustomer(clubId: string, values: { name: string; phone: str
   return res.json();
 }
 
+async function updateCustomer(
+  customerId: string,
+  values: { name: string; phone: string; balance: number; bonusPoints: number }
+) {
+  const res = await fetch(`/api/customers/${customerId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(values),
+  });
+  if (!res.ok) throw new Error(`PATCH customer failed: ${res.status}`);
+  return res.json();
+}
+
+async function deleteCustomer(customerId: string) {
+  const res = await fetch(`/api/customers/${customerId}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`DELETE customer failed: ${res.status}`);
+}
+
 export default function CustomersPage() {
   const { t } = useI18n();
   const { clubId } = useParams<{ clubId: string }>();
@@ -46,6 +66,7 @@ export default function CustomersPage() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [editing, setEditing] = useState<Customer | null>(null);
 
   // Debounce the search box so we don't fire a request per keystroke, and
   // restart pagination at page 1 once the debounced term actually changes.
@@ -83,10 +104,40 @@ export default function CustomersPage() {
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: ({
+      customerId,
+      values,
+    }: {
+      customerId: string;
+      values: { name: string; phone: string; balance: number; bonusPoints: number };
+    }) => updateCustomer(customerId, values),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customers", clubId] });
+      setEditing(null);
+      toast.success(t("customers.updated"));
+    },
+    onError: () => toast.error(t("common.error")),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (customerId: string) => deleteCustomer(customerId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customers", clubId] });
+      toast.success(t("customers.deleted"));
+    },
+    onError: () => toast.error(t("common.error")),
+  });
+
   function add(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
     addMutation.mutate({ name, phone });
+  }
+
+  function remove(c: Customer) {
+    if (!window.confirm(t("customers.deleteConfirm"))) return;
+    deleteMutation.mutate(c.id);
   }
 
   return (
@@ -126,12 +177,13 @@ export default function CustomersPage() {
                   <TableHead>{t("customers.phone")}</TableHead>
                   <TableHead>{t("customers.balance")}</TableHead>
                   <TableHead>{t("customers.bonus")}</TableHead>
+                  <TableHead className="text-right">{t("customers.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground">
+                    <TableCell colSpan={5} className="text-center text-muted-foreground">
                       {t("common.loading")}
                     </TableCell>
                   </TableRow>
@@ -144,6 +196,28 @@ export default function CustomersPage() {
                         {formatMoney(c.balance)} {t("common.currency")}
                       </TableCell>
                       <TableCell className="text-muted-foreground">{c.bonusPoints}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            aria-label={t("common.edit")}
+                            onClick={() => setEditing(c)}
+                          >
+                            <IconEdit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            aria-label={t("common.delete")}
+                            onClick={() => remove(c)}
+                          >
+                            <IconTrash className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
@@ -153,6 +227,81 @@ export default function CustomersPage() {
           <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
         </>
       )}
+
+      {editing && (
+        <EditCustomerDialog
+          customer={editing}
+          pending={updateMutation.isPending}
+          onClose={() => setEditing(null)}
+          onSave={(values) => updateMutation.mutate({ customerId: editing.id, values })}
+        />
+      )}
     </div>
+  );
+}
+
+function EditCustomerDialog({
+  customer,
+  pending,
+  onClose,
+  onSave,
+}: {
+  customer: Customer;
+  pending: boolean;
+  onClose: () => void;
+  onSave: (values: { name: string; phone: string; balance: number; bonusPoints: number }) => void;
+}) {
+  const { t } = useI18n();
+  const [name, setName] = useState(customer.name);
+  const [phone, setPhone] = useState(customer.phone ?? "");
+  const [balance, setBalance] = useState(String(customer.balance));
+  const [bonusPoints, setBonusPoints] = useState(String(customer.bonusPoints));
+
+  function save() {
+    if (!name.trim()) return;
+    onSave({
+      name,
+      phone,
+      balance: Math.max(0, Math.round(Number(balance) || 0)),
+      bonusPoints: Math.max(0, Math.round(Number(bonusPoints) || 0)),
+    });
+  }
+
+  return (
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>{t("customers.editTitle")}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">{t("customers.name")}</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">{t("customers.phone")}</Label>
+            <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">{t("customers.balance")}</Label>
+              <Input type="number" min="0" value={balance} onChange={(e) => setBalance(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">{t("customers.bonus")}</Label>
+              <Input type="number" min="0" value={bonusPoints} onChange={(e) => setBonusPoints(e.target.value)} />
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <Button className="flex-1" disabled={pending} onClick={save}>
+            {t("common.save")}
+          </Button>
+          <Button variant="ghost" onClick={onClose}>
+            {t("common.cancel")}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

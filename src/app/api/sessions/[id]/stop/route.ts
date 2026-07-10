@@ -2,10 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { openCost } from "@/lib/tariffs";
 import { requireMembership } from "@/lib/auth/requireMembership";
-import { isPaymentMethod } from "@/lib/shifts";
+import { canPayFromBalance, isPaymentMethod } from "@/lib/shifts";
+
+// Thrown inside the stop transaction to short-circuit with a specific HTTP
+// response — keeps the balance check + decrement + session update atomic
+// while still letting the route return a meaningful error.
+class StopError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
 
 // POST /api/sessions/[id]/stop — finish a session and finalize the bill.
-// body: { paymentMethod?: "CASH" | "CARD" } — defaults to CASH.
+// body: { paymentMethod?: "CASH" | "CARD" | "BALANCE" } — defaults to CASH.
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -43,15 +54,47 @@ export async function POST(
     select: { id: true },
   });
 
-  const updated = await prisma.session.update({
-    where: { id: session.id },
-    data: { endedAt, cost, status: "FINISHED", paymentMethod, shiftId: openShift?.id ?? null },
-  });
+  try {
+    // Balance check-and-decrement runs in the same transaction as the session
+    // finalization: a crash (or a concurrent stop) between them can't leave
+    // the customer debited without the session actually being closed, or
+    // vice versa.
+    const updated = await prisma.$transaction(async (tx) => {
+      if (paymentMethod === "BALANCE") {
+        if (!session.customerId) {
+          throw new StopError(400, "Session has no customer; cannot pay from balance");
+        }
+        const customer = await tx.customer.findUnique({
+          where: { id: session.customerId },
+          select: { balance: true },
+        });
+        if (!canPayFromBalance(customer, cost)) {
+          throw new StopError(400, "Insufficient balance");
+        }
+        await tx.customer.update({
+          where: { id: session.customerId },
+          data: { balance: { decrement: cost } },
+        });
+      }
 
-  await prisma.station.update({
-    where: { id: session.stationId },
-    data: { status: "FREE" },
-  });
+      const updatedSession = await tx.session.update({
+        where: { id: session.id },
+        data: { endedAt, cost, status: "FINISHED", paymentMethod, shiftId: openShift?.id ?? null },
+      });
 
-  return NextResponse.json(updated);
+      await tx.station.update({
+        where: { id: session.stationId },
+        data: { status: "FREE" },
+      });
+
+      return updatedSession;
+    });
+
+    return NextResponse.json(updated);
+  } catch (err) {
+    if (err instanceof StopError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
+    throw err;
+  }
 }
