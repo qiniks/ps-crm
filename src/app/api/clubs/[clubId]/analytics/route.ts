@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireMembership } from "@/lib/auth/requireMembership";
+import { localDayKey, startOfLocalDayDaysAgo } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +11,7 @@ const TOP_CUSTOMERS = 5;
 
 // GET /api/clubs/[clubId]/analytics — 30-day aggregates for the analytics page:
 // totals, peak hours, weekday load, tariff/room popularity, daily revenue trend,
-// top customers. All grouping uses server-local time, same as the reports route.
+// top customers. All grouping uses server-local time — see src/lib/time.ts.
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ clubId: string }> }
@@ -19,9 +20,7 @@ export async function GET(
   const auth = await requireMembership(clubId);
   if (!auth.ok) return auth.response;
 
-  const since = new Date();
-  since.setDate(since.getDate() - DAYS);
-  since.setHours(0, 0, 0, 0);
+  const since = startOfLocalDayDaysAgo(DAYS);
 
   const [sessions, activeNow] = await Promise.all([
     prisma.session.findMany({
@@ -78,19 +77,12 @@ export async function GET(
   const byDay: { date: string; revenue: number; count: number }[] = [];
   const dayIndex = new Map<string, number>();
   for (let i = TREND_DAYS - 1; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-      d.getDate()
-    ).padStart(2, "0")}`;
+    const key = localDayKey(startOfLocalDayDaysAgo(i));
     dayIndex.set(key, byDay.length);
     byDay.push({ date: key, revenue: 0, count: 0 });
   }
   for (const s of sessions) {
-    const e = s.endedAt!;
-    const key = `${e.getFullYear()}-${String(e.getMonth() + 1).padStart(2, "0")}-${String(
-      e.getDate()
-    ).padStart(2, "0")}`;
+    const key = localDayKey(s.endedAt!);
     const idx = dayIndex.get(key);
     if (idx !== undefined) {
       byDay[idx].revenue += s.cost;

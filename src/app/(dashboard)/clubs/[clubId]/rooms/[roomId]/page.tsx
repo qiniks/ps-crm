@@ -8,6 +8,7 @@ import { IconCircleFilled, IconEdit } from "@tabler/icons-react";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
 import { useNow } from "@/lib/useNow";
 import { formatDuration, formatMoney } from "@/lib/format";
+import { liveCost } from "@/lib/tariffs";
 import { PAYMENT_METHODS, type PaymentMethod } from "@/lib/shifts";
 import { StationMarker } from "@/components/room/StationMarker";
 import { BookingModal } from "@/components/room/BookingModal";
@@ -154,14 +155,7 @@ function StopModal({
   const [method, setMethod] = useState<PaymentMethod>("CASH");
   const sess = station.activeSession!;
   const started = new Date(sess.startedAt).getTime();
-  const cost =
-    sess.tariffKind === "OPEN"
-      ? Math.round(((now - started) / 3_600_000) * room.openHourlyRate)
-      : sess.tariffKind === "HOUR_1"
-      ? room.price1h
-      : sess.tariffKind === "HOUR_3"
-      ? room.price3h
-      : room.price5h;
+  const cost = liveCost(sess, room, now);
 
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>

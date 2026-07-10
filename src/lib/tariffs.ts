@@ -40,3 +40,18 @@ export function openCost(startedAt: Date, endedAt: Date, openHourlyRate: number)
   const hours = (endedAt.getTime() - startedAt.getTime()) / 3_600_000;
   return Math.round(hours * openHourlyRate);
 }
+
+// Cost of a session if it were stopped right now: the up-front fixed price
+// for fixed tariffs, or elapsed time * hourly rate for OPEN. Shared by every
+// place that shows a live/running cost (floor plan, stop dialog) so they
+// can't drift from what the stop endpoint actually charges.
+export function liveCost(
+  session: { tariffKind: TariffKind; startedAt: Date | string },
+  room: RoomPricing,
+  now: Date | number
+): number {
+  if (session.tariffKind === "OPEN") {
+    return openCost(new Date(session.startedAt), new Date(now), room.openHourlyRate);
+  }
+  return fixedPrice(room, session.tariffKind) ?? 0;
+}
