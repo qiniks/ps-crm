@@ -117,11 +117,14 @@ CREATE TABLE "Reservation" (
 );
 
 -- CreateTable
+-- role: OWNER | CASHIER. OWNER can manage this club's membership
+-- (invite/remove/change roles); CASHIER cannot. Defaults to OWNER so
+-- existing rows created before role tiers existed stay manage-capable.
 CREATE TABLE "Membership" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "tenantId" TEXT NOT NULL,
-    "role" TEXT NOT NULL DEFAULT 'member',
+    "role" TEXT NOT NULL DEFAULT 'OWNER',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "Membership_pkey" PRIMARY KEY ("id")

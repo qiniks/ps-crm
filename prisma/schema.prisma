@@ -155,7 +155,12 @@ model Membership {
   userId    String // Supabase auth.users.id — not an FK, different schema
   tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   tenantId  String
-  role      String   @default("member") // unused for now, reserved for later permission tiers
+  // OWNER | CASHIER. OWNER can manage this club's membership (invite/remove/
+  // change roles); CASHIER cannot. Defaults to OWNER for backward
+  // compatibility — every membership created before role tiers existed (and
+  // any legacy "member" value) is treated as manage-capable, see
+  // canManageMembers() in src/lib/auth/roles.ts.
+  role      String   @default("OWNER")
   createdAt DateTime @default(now())
 
   @@unique([userId, tenantId])
