@@ -6,6 +6,7 @@
 -- model there, mirror the change here too.
 -- ============================================================
 
+DROP TABLE IF EXISTS "AuditLog" CASCADE;
 DROP TABLE IF EXISTS "Reservation" CASCADE;
 DROP TABLE IF EXISTS "Session" CASCADE;
 DROP TABLE IF EXISTS "Shift" CASCADE;
@@ -132,6 +133,21 @@ CREATE TABLE "Membership" (
     CONSTRAINT "Membership_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "AuditLog" (
+    "id" TEXT NOT NULL,
+    "tenantId" TEXT,
+    "actorUserId" TEXT,
+    "actorEmail" TEXT,
+    "action" TEXT NOT NULL,
+    "targetType" TEXT,
+    "targetId" TEXT,
+    "metadata" JSONB,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "AuditLog_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE INDEX "Room_tenantId_idx" ON "Room"("tenantId");
 
@@ -171,6 +187,15 @@ CREATE INDEX "Membership_tenantId_idx" ON "Membership"("tenantId");
 -- CreateIndex
 CREATE UNIQUE INDEX "Membership_userId_tenantId_key" ON "Membership"("userId", "tenantId");
 
+-- CreateIndex
+CREATE INDEX "AuditLog_tenantId_idx" ON "AuditLog"("tenantId");
+
+-- CreateIndex
+CREATE INDEX "AuditLog_action_idx" ON "AuditLog"("action");
+
+-- CreateIndex
+CREATE INDEX "AuditLog_createdAt_idx" ON "AuditLog"("createdAt");
+
 -- AddForeignKey
 ALTER TABLE "Room" ADD CONSTRAINT "Room_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
@@ -209,6 +234,9 @@ ALTER TABLE "Reservation" ADD CONSTRAINT "Reservation_customerId_fkey" FOREIGN K
 
 -- AddForeignKey
 ALTER TABLE "Membership" ADD CONSTRAINT "Membership_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "AuditLog" ADD CONSTRAINT "AuditLog_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 
 -- ============================================================

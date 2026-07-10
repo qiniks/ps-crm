@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireMembership } from "@/lib/auth/requireMembership";
 import { canDeleteRoom } from "@/lib/deletion";
+import { getSessionUser } from "@/lib/auth/session";
+import { logAudit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -93,6 +95,36 @@ export async function PATCH(
   if (body.archived === false) data.archivedAt = null;
 
   const updated = await prisma.room.update({ where: { id: roomId }, data });
+
+  const pricingChanged = ["price1h", "price3h", "price5h", "openHourlyRate"].some(
+    (key) => key in data
+  );
+  if (pricingChanged) {
+    const user = await getSessionUser();
+    await logAudit({
+      tenantId: room.tenantId,
+      actorUserId: user?.id ?? auth.userId,
+      actorEmail: user?.email ?? null,
+      action: "room.updatePricing",
+      targetType: "Room",
+      targetId: room.id,
+      metadata: {
+        before: {
+          price1h: room.price1h,
+          price3h: room.price3h,
+          price5h: room.price5h,
+          openHourlyRate: room.openHourlyRate,
+        },
+        after: {
+          price1h: updated.price1h,
+          price3h: updated.price3h,
+          price5h: updated.price5h,
+          openHourlyRate: updated.openHourlyRate,
+        },
+      },
+    });
+  }
+
   return NextResponse.json(updated);
 }
 

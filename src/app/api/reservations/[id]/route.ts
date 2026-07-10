@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireMembership } from "@/lib/auth/requireMembership";
+import { getSessionUser } from "@/lib/auth/session";
+import { logAudit } from "@/lib/audit";
 import { fixedPrice, tariffHours, type TariffKind } from "@/lib/tariffs";
 
 // PATCH /api/reservations/[id] — body: { action: "cancel" | "seat" }.
@@ -34,6 +36,22 @@ export async function PATCH(
       where: { id: reservation.id },
       data: { status: "CANCELLED" },
     });
+
+    const user = await getSessionUser();
+    await logAudit({
+      tenantId: reservation.tenantId,
+      actorUserId: user?.id ?? auth.userId,
+      actorEmail: user?.email ?? null,
+      action: "reservation.cancel",
+      targetType: "Reservation",
+      targetId: reservation.id,
+      metadata: {
+        stationId: reservation.stationId,
+        tariffKind: reservation.tariffKind,
+        startAt: reservation.startAt.toISOString(),
+      },
+    });
+
     return NextResponse.json(updated);
   }
 

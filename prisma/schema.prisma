@@ -27,6 +27,7 @@ model Tenant {
   memberships  Membership[]
   shifts       Shift[]
   reservations Reservation[]
+  auditLogs    AuditLog[]
 }
 
 // A room inside a club (e.g. "Standard hall", "VIP room").
@@ -177,4 +178,26 @@ model Membership {
   @@unique([userId, tenantId])
   @@index([userId])
   @@index([tenantId])
+}
+
+// A record of a sensitive action — who did what to what, and when. Written
+// via the logAudit() helper (src/lib/audit.ts), never mutated afterwards.
+// tenantId is nullable because impersonation start/stop isn't scoped to a
+// club; onDelete: SetNull keeps the log entry around (with tenant context
+// lost) if the tenant is later deleted, instead of cascading it away.
+model AuditLog {
+  id          String   @id @default(cuid())
+  tenant      Tenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  tenantId    String?
+  actorUserId String? // Supabase auth.users.id — not an FK, different schema
+  actorEmail  String? // email snapshot, same pattern as Shift.openedBy
+  action      String // e.g. "session.stop", "shift.close", "impersonation.start"
+  targetType  String? // e.g. "Session", "Shift", "User"
+  targetId    String?
+  metadata    Json? // action-specific details, e.g. a shift's cash difference
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([action])
+  @@index([createdAt])
 }

@@ -1,6 +1,7 @@
 "use client";
 
-import { IconLogin2 } from "@tabler/icons-react";
+import Link from "next/link";
+import { IconLogin2, IconHistory } from "@tabler/icons-react";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -46,7 +47,15 @@ export function AdminPageClient({
 
   return (
     <div className="mx-auto max-w-4xl">
-      <h1 className="mb-6 text-2xl font-bold text-foreground">{t("admin.title")}</h1>
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-foreground">{t("admin.title")}</h1>
+        <Button asChild size="sm" variant="outline" className="gap-1.5">
+          <Link href="/admin/audit">
+            <IconHistory className="h-3.5 w-3.5" />
+            {t("admin.viewAuditLog")}
+          </Link>
+        </Button>
+      </div>
 
       <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2">
         <Card className="p-5">

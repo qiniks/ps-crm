@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { openCost } from "@/lib/tariffs";
 import { requireMembership } from "@/lib/auth/requireMembership";
 import { canPayFromBalance, isPaymentMethod } from "@/lib/shifts";
+import { getSessionUser } from "@/lib/auth/session";
+import { logAudit } from "@/lib/audit";
 
 // Thrown inside the stop transaction to short-circuit with a specific HTTP
 // response — keeps the balance check + decrement + session update atomic
@@ -88,6 +90,25 @@ export async function POST(
       });
 
       return updatedSession;
+    });
+
+    // The real signed-in user, not the impersonated one — an admin browsing
+    // as someone else must not have the audit trail attribute the stop to
+    // the impersonated identity (same reasoning as the shift-open route).
+    const user = await getSessionUser();
+    await logAudit({
+      tenantId: session.tenantId,
+      actorUserId: user?.id ?? auth.userId,
+      actorEmail: user?.email ?? null,
+      action: "session.stop",
+      targetType: "Session",
+      targetId: session.id,
+      metadata: {
+        stationId: session.stationId,
+        tariffKind: session.tariffKind,
+        cost,
+        paymentMethod,
+      },
     });
 
     return NextResponse.json(updated);
