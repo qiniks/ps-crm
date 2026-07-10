@@ -35,6 +35,11 @@ export const dictionaries = {
     "common.confirm": "Подтвердить",
     "common.retry": "Повторить",
     "common.close": "Закрыть",
+    "common.search": "Поиск",
+    "common.previous": "Назад",
+    "common.next": "Вперёд",
+    "common.page": "Страница",
+    "common.noResults": "Ничего не найдено",
 
     "auth.signIn": "Войти",
     "auth.signingIn": "Вход…",
@@ -71,6 +76,7 @@ export const dictionaries = {
     "clubs.create": "Создать клуб",
     "clubs.empty": "У вас пока нет клубов",
     "clubs.roomsCount": "залов",
+    "clubs.searchPlaceholder": "Поиск по названию клуба",
 
     "club.rooms": "Залы",
     "club.addRoom": "Добавить зал",
@@ -134,6 +140,7 @@ export const dictionaries = {
     "customers.bonus": "Бонусы",
     "customers.empty": "Клиентов пока нет",
     "customers.created": "Клиент добавлен",
+    "customers.searchPlaceholder": "Поиск по имени или телефону",
 
     "payment.method": "Оплата",
     "payment.CASH": "Наличные",
@@ -225,6 +232,11 @@ export const dictionaries = {
     "common.confirm": "Confirm",
     "common.retry": "Retry",
     "common.close": "Close",
+    "common.search": "Search",
+    "common.previous": "Previous",
+    "common.next": "Next",
+    "common.page": "Page",
+    "common.noResults": "No results found",
 
     "auth.signIn": "Sign in",
     "auth.signingIn": "Signing in…",
@@ -261,6 +273,7 @@ export const dictionaries = {
     "clubs.create": "Create club",
     "clubs.empty": "You don't have any clubs yet",
     "clubs.roomsCount": "rooms",
+    "clubs.searchPlaceholder": "Search by club name",
 
     "club.rooms": "Rooms",
     "club.addRoom": "Add room",
@@ -324,6 +337,7 @@ export const dictionaries = {
     "customers.bonus": "Bonus",
     "customers.empty": "No customers yet",
     "customers.created": "Customer added",
+    "customers.searchPlaceholder": "Search by name or phone",
 
     "payment.method": "Payment",
     "payment.CASH": "Cash",
