@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cashDifference, expectedCash, isPaymentMethod } from "./shifts";
+import { canPayFromBalance, cashDifference, expectedCash, isPaymentMethod } from "./shifts";
 
 describe("expectedCash", () => {
   it("adds only cash payments to the opening float", () => {
@@ -15,6 +15,14 @@ describe("expectedCash", () => {
   it("returns the opening float when there are no payments", () => {
     expect(expectedCash(500, [])).toBe(500);
   });
+
+  it("does not count balance payments toward the cash drawer", () => {
+    const payments = [
+      { cost: 500, paymentMethod: "CASH" },
+      { cost: 400, paymentMethod: "BALANCE" },
+    ];
+    expect(expectedCash(1000, payments)).toBe(1500);
+  });
 });
 
 describe("cashDifference", () => {
@@ -26,10 +34,33 @@ describe("cashDifference", () => {
 });
 
 describe("isPaymentMethod", () => {
-  it("accepts only CASH and CARD", () => {
+  it("accepts CASH, CARD and BALANCE", () => {
     expect(isPaymentMethod("CASH")).toBe(true);
     expect(isPaymentMethod("CARD")).toBe(true);
-    expect(isPaymentMethod("BALANCE")).toBe(false);
+    expect(isPaymentMethod("BALANCE")).toBe(true);
+    expect(isPaymentMethod("BITCOIN")).toBe(false);
     expect(isPaymentMethod(undefined)).toBe(false);
+  });
+});
+
+describe("canPayFromBalance", () => {
+  it("rejects when there is no customer", () => {
+    expect(canPayFromBalance(null, 500)).toBe(false);
+  });
+
+  it("rejects when the balance is less than the cost", () => {
+    expect(canPayFromBalance({ balance: 499 }, 500)).toBe(false);
+  });
+
+  it("accepts when the balance exactly covers the cost", () => {
+    expect(canPayFromBalance({ balance: 500 }, 500)).toBe(true);
+  });
+
+  it("accepts when the balance exceeds the cost", () => {
+    expect(canPayFromBalance({ balance: 1000 }, 500)).toBe(true);
+  });
+
+  it("accepts a zero-cost session regardless of balance", () => {
+    expect(canPayFromBalance({ balance: 0 }, 0)).toBe(true);
   });
 });
