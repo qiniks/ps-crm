@@ -1,30 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireMembership } from "@/lib/auth/requireMembership";
-import { localDayKey, startOfLocalDayDaysAgo } from "@/lib/time";
+import { parseDateRangeParams } from "@/lib/dateRangeQuery";
+import { addDays, localDayKey } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
-const DAYS = 30;
-const TREND_DAYS = 14;
 const TOP_CUSTOMERS = 5;
 
-// GET /api/clubs/[clubId]/analytics — 30-day aggregates for the analytics page:
-// totals, peak hours, weekday load, tariff/room popularity, daily revenue trend,
-// top customers. All grouping uses server-local time — see src/lib/time.ts.
+// GET /api/clubs/[clubId]/analytics?preset=today|week|month|custom&from=&to=
+// Aggregates for the analytics page over the selected date range (defaults
+// to "month" when no/invalid params are given): totals, peak hours, weekday
+// load, tariff/room popularity, a daily revenue trend spanning the whole
+// range, and top customers. All grouping uses server-local time — see
+// src/lib/time.ts.
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ clubId: string }> }
 ) {
   const { clubId } = await params;
   const auth = await requireMembership(clubId);
   if (!auth.ok) return auth.response;
 
-  const since = startOfLocalDayDaysAgo(DAYS);
+  const { searchParams } = new URL(req.url);
+  const range = parseDateRangeParams(searchParams, "month");
 
   const [sessions, activeNow] = await Promise.all([
     prisma.session.findMany({
-      where: { tenantId: clubId, status: "FINISHED", endedAt: { gte: since } },
+      where: {
+        tenantId: clubId,
+        status: "FINISHED",
+        endedAt: { gte: range.from, lt: range.to },
+      },
       include: {
         station: { select: { room: { select: { id: true, name: true } } } },
         customer: { select: { id: true, name: true } },
@@ -33,14 +40,14 @@ export async function GET(
     prisma.session.count({ where: { tenantId: clubId, status: "ACTIVE" } }),
   ]);
 
-  const revenue30d = sessions.reduce((sum, s) => sum + s.cost, 0);
-  const sessions30d = sessions.length;
-  const avgCheck = sessions30d ? Math.round(revenue30d / sessions30d) : 0;
+  const revenue = sessions.reduce((sum, s) => sum + s.cost, 0);
+  const sessionsCount = sessions.length;
+  const avgCheck = sessionsCount ? Math.round(revenue / sessionsCount) : 0;
   const totalDurationMs = sessions.reduce(
     (sum, s) => sum + (s.endedAt!.getTime() - s.startedAt.getTime()),
     0
   );
-  const avgDurationMin = sessions30d ? Math.round(totalDurationMs / sessions30d / 60_000) : 0;
+  const avgDurationMin = sessionsCount ? Math.round(totalDurationMs / sessionsCount / 60_000) : 0;
 
   // Sessions by starting hour (0..23) and by weekday (Monday-first).
   const byHour = Array.from({ length: 24 }, () => 0);
@@ -73,11 +80,13 @@ export async function GET(
     }
   }
 
-  // Daily revenue for the trend chart, oldest → today, zero-filled.
+  // Daily revenue for the trend chart, spanning the whole selected range,
+  // oldest → newest, zero-filled.
+  const totalDays = Math.round((range.to.getTime() - range.from.getTime()) / 86_400_000);
   const byDay: { date: string; revenue: number; count: number }[] = [];
   const dayIndex = new Map<string, number>();
-  for (let i = TREND_DAYS - 1; i >= 0; i--) {
-    const key = localDayKey(startOfLocalDayDaysAgo(i));
+  for (let i = 0; i < totalDays; i++) {
+    const key = localDayKey(addDays(range.from, i));
     dayIndex.set(key, byDay.length);
     byDay.push({ date: key, revenue: 0, count: 0 });
   }
@@ -91,7 +100,7 @@ export async function GET(
   }
 
   return NextResponse.json({
-    totals: { revenue30d, sessions30d, avgCheck, avgDurationMin, activeNow },
+    totals: { revenue, sessionsCount, avgCheck, avgDurationMin, activeNow },
     byHour,
     byWeekday,
     byTariff: [...byTariff.entries()]
