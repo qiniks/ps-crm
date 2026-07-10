@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireMembership } from "@/lib/auth/requireMembership";
+import { getSessionUser } from "@/lib/auth/session";
 import { cashDifference, expectedCash } from "@/lib/shifts";
+import { logAudit, shiftCloseMetadata } from "@/lib/audit";
 
 // POST /api/shifts/[shiftId]/close — close a shift with the counted cash.
 // body: { closingCash }
@@ -35,6 +37,25 @@ export async function POST(
   });
 
   const expected = expectedCash(shift.openingCash, shift.sessions);
+
+  // The real signed-in user, not the impersonated one — same reasoning as
+  // the shift-open route: whoever counted the drawer is who the audit trail
+  // should name.
+  const user = await getSessionUser();
+  await logAudit({
+    tenantId: shift.tenantId,
+    actorUserId: user?.id ?? auth.userId,
+    actorEmail: user?.email ?? shift.openedBy ?? null,
+    action: "shift.close",
+    targetType: "Shift",
+    targetId: shift.id,
+    metadata: shiftCloseMetadata({
+      openingCash: shift.openingCash,
+      closingCash,
+      expectedCash: expected,
+    }),
+  });
+
   return NextResponse.json({
     ...updated,
     expectedCash: expected,

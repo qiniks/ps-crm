@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { openCost } from "@/lib/tariffs";
 import { requireMembership } from "@/lib/auth/requireMembership";
+import { getSessionUser } from "@/lib/auth/session";
 import { isPaymentMethod } from "@/lib/shifts";
+import { logAudit } from "@/lib/audit";
 
 // POST /api/sessions/[id]/stop — finish a session and finalize the bill.
 // body: { paymentMethod?: "CASH" | "CARD" } — defaults to CASH.
@@ -51,6 +53,25 @@ export async function POST(
   await prisma.station.update({
     where: { id: session.stationId },
     data: { status: "FREE" },
+  });
+
+  // The real signed-in user, not the impersonated one — an admin browsing as
+  // someone else must not have the audit trail attribute the stop to the
+  // impersonated identity (same reasoning as the shift-open route).
+  const user = await getSessionUser();
+  await logAudit({
+    tenantId: session.tenantId,
+    actorUserId: user?.id ?? auth.userId,
+    actorEmail: user?.email ?? null,
+    action: "session.stop",
+    targetType: "Session",
+    targetId: session.id,
+    metadata: {
+      stationId: session.stationId,
+      tariffKind: session.tariffKind,
+      cost,
+      paymentMethod,
+    },
   });
 
   return NextResponse.json(updated);

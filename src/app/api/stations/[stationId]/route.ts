@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireMembership } from "@/lib/auth/requireMembership";
+import { getSessionUser } from "@/lib/auth/session";
+import { logAudit } from "@/lib/audit";
 
 // PATCH /api/stations/[stationId] — rename / change type / status.
 export async function PATCH(
@@ -41,5 +43,17 @@ export async function DELETE(
   if (!auth.ok) return auth.response;
 
   await prisma.station.delete({ where: { id: stationId } });
+
+  const user = await getSessionUser();
+  await logAudit({
+    tenantId: station.tenantId,
+    actorUserId: user?.id ?? auth.userId,
+    actorEmail: user?.email ?? null,
+    action: "station.delete",
+    targetType: "Station",
+    targetId: station.id,
+    metadata: { name: station.name, roomId: station.roomId },
+  });
+
   return NextResponse.json({ ok: true });
 }
