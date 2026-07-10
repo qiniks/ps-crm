@@ -3,6 +3,7 @@
 import { IconUser } from "@tabler/icons-react";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
 import { formatDuration, formatMoney } from "@/lib/format";
+import { liveCost } from "@/lib/tariffs";
 import { cn } from "@/lib/utils";
 import type { RoomDTO, StationDTO } from "@/lib/room-types";
 import type { TranslationKey } from "@/lib/i18n/dictionaries";
@@ -30,7 +31,7 @@ export function StationMarker({
   if (isBusy && sess) {
     const started = new Date(sess.startedAt).getTime();
     if (sess.tariffKind === "OPEN") {
-      cost = Math.round(((now - started) / 3_600_000) * room.openHourlyRate);
+      cost = liveCost(sess, room, now);
       timer = { label: t("station.elapsed"), value: formatDuration(now - started) };
     } else if (sess.plannedEndAt) {
       const remaining = new Date(sess.plannedEndAt).getTime() - now;
