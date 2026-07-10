@@ -5,7 +5,9 @@ export type ActiveSession = {
   tariffKind: TariffKind;
   startedAt: string;
   plannedEndAt: string | null;
+  customerId: string | null;
   customerName: string | null;
+  customerBalance: number | null;
 };
 
 export type StationDTO = {

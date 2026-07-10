@@ -4,12 +4,13 @@ import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { IconCircleFilled, IconEdit } from "@tabler/icons-react";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
 import { useNow } from "@/lib/useNow";
 import { formatDuration, formatMoney } from "@/lib/format";
 import { liveCost } from "@/lib/tariffs";
-import { PAYMENT_METHODS, type PaymentMethod } from "@/lib/shifts";
+import { canPayFromBalance, PAYMENT_METHODS, type PaymentMethod } from "@/lib/shifts";
 import { StationMarker } from "@/components/room/StationMarker";
 import { BookingModal } from "@/components/room/BookingModal";
 import { ReservationsPanel } from "@/components/room/ReservationsPanel";
@@ -31,7 +32,10 @@ async function stopSession(sessionId: string, paymentMethod: PaymentMethod) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ paymentMethod }),
   });
-  if (!res.ok) throw new Error(`POST stop failed: ${res.status}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error ?? `POST stop failed: ${res.status}`);
+  }
   return res.json();
 }
 
@@ -56,6 +60,10 @@ export default function RoomViewPage() {
       queryClient.invalidateQueries({ queryKey: ["room", roomId] });
       queryClient.invalidateQueries({ queryKey: ["shifts", clubId] });
       setStopping(null);
+    },
+    onError: () => {
+      queryClient.invalidateQueries({ queryKey: ["room", roomId] });
+      toast.error(t("payment.stopFailed"));
     },
   });
 
@@ -156,6 +164,14 @@ function StopModal({
   const sess = station.activeSession!;
   const started = new Date(sess.startedAt).getTime();
   const cost = liveCost(sess, room, now);
+  const balanceEligible = canPayFromBalance(
+    sess.customerId ? { balance: sess.customerBalance ?? 0 } : null,
+    cost
+  );
+  // If the elapsed cost of an OPEN-tariff session grows past the customer's
+  // balance while the modal is open, fall back off the now-ineligible
+  // selection — derived, not synced via effect, so it can't lag a render.
+  const effectiveMethod: PaymentMethod = method === "BALANCE" && !balanceEligible ? "CASH" : method;
 
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
@@ -179,22 +195,31 @@ function StopModal({
         </div>
         <div>
           <div className="mb-1.5 text-sm font-medium text-foreground">{t("payment.method")}</div>
-          <div className="grid grid-cols-2 gap-2">
-            {PAYMENT_METHODS.map((m) => (
-              <Button
-                key={m}
-                type="button"
-                variant={method === m ? "default" : "outline"}
-                className={cn(method !== m && "text-muted-foreground")}
-                onClick={() => setMethod(m)}
-              >
-                {t(`payment.${m}` as TranslationKey)}
-              </Button>
-            ))}
+          <div className="grid grid-cols-3 gap-2">
+            {PAYMENT_METHODS.map((m) => {
+              const disabled = m === "BALANCE" && !balanceEligible;
+              return (
+                <Button
+                  key={m}
+                  type="button"
+                  variant={effectiveMethod === m ? "default" : "outline"}
+                  disabled={disabled}
+                  className={cn(effectiveMethod !== m && "text-muted-foreground")}
+                  onClick={() => setMethod(m)}
+                >
+                  {t(`payment.${m}` as TranslationKey)}
+                </Button>
+              );
+            })}
           </div>
+          {!balanceEligible && (
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              {sess.customerId ? t("payment.balanceInsufficient") : t("payment.balanceNoCustomer")}
+            </p>
+          )}
         </div>
         <div className="flex gap-2">
-          <Button variant="destructive" className="flex-1" disabled={pending} onClick={() => onStop(method)}>
+          <Button variant="destructive" className="flex-1" disabled={pending} onClick={() => onStop(effectiveMethod)}>
             {t("station.stop")}
           </Button>
           <Button variant="ghost" onClick={onClose}>

@@ -96,8 +96,10 @@ model Session {
   endedAt       DateTime?
   cost          Int       @default(0)
   status        String    @default("ACTIVE") // ACTIVE | FINISHED
-  // How the finished session was paid: CASH | CARD (null until stopped,
-  // or for sessions finished before payment tracking existed).
+  // How the finished session was paid: CASH | CARD | BALANCE (null until
+  // stopped, or for sessions finished before payment tracking existed).
+  // BALANCE debits the customer's prepaid Customer.balance and, like CARD,
+  // never touches the cash drawer (see expectedCash() in src/lib/shifts.ts).
   paymentMethod String?
   // The cash-register shift the payment landed in (null when no shift was open).
   shift         Shift?    @relation(fields: [shiftId], references: [id], onDelete: SetNull)
