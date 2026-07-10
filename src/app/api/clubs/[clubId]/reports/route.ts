@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireMembership } from "@/lib/auth/requireMembership";
+import { startOfLocalDay } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/clubs/[clubId]/reports — today's revenue summary + recent sessions.
+// "Today" uses server-local time — see src/lib/time.ts for the assumption.
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ clubId: string }> }
@@ -13,8 +15,7 @@ export async function GET(
   const auth = await requireMembership(clubId);
   if (!auth.ok) return auth.response;
 
-  const startOfDay = new Date();
-  startOfDay.setHours(0, 0, 0, 0);
+  const startOfDay = startOfLocalDay();
 
   const todays = await prisma.session.findMany({
     where: {
