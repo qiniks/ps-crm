@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireMembership } from "@/lib/auth/requireMembership";
+import { canDeleteRoom } from "@/lib/deletion";
+import { getSessionUser } from "@/lib/auth/session";
+import { logAudit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -55,7 +58,9 @@ export async function GET(
               tariffKind: sess.tariffKind,
               startedAt: sess.startedAt,
               plannedEndAt: sess.plannedEndAt,
+              customerId: sess.customerId,
               customerName: sess.customer?.name ?? null,
+              customerBalance: sess.customer?.balance ?? null,
             }
           : null,
       };
@@ -84,7 +89,77 @@ export async function PATCH(
   if (body.price3h !== undefined) data.price3h = num(body.price3h);
   if (body.price5h !== undefined) data.price5h = num(body.price5h);
   if (body.openHourlyRate !== undefined) data.openHourlyRate = num(body.openHourlyRate);
+  // Restore path for an archived room — the only way `archived` is honored
+  // here is to un-archive; archiving itself goes through DELETE below so it
+  // gets the canDeleteRoom guard.
+  if (body.archived === false) data.archivedAt = null;
 
   const updated = await prisma.room.update({ where: { id: roomId }, data });
+
+  const pricingChanged = ["price1h", "price3h", "price5h", "openHourlyRate"].some(
+    (key) => key in data
+  );
+  if (pricingChanged) {
+    const user = await getSessionUser();
+    await logAudit({
+      tenantId: room.tenantId,
+      actorUserId: user?.id ?? auth.userId,
+      actorEmail: user?.email ?? null,
+      action: "room.updatePricing",
+      targetType: "Room",
+      targetId: room.id,
+      metadata: {
+        before: {
+          price1h: room.price1h,
+          price3h: room.price3h,
+          price5h: room.price5h,
+          openHourlyRate: room.openHourlyRate,
+        },
+        after: {
+          price1h: updated.price1h,
+          price3h: updated.price3h,
+          price5h: updated.price5h,
+          openHourlyRate: updated.openHourlyRate,
+        },
+      },
+    });
+  }
+
   return NextResponse.json(updated);
+}
+
+// DELETE /api/rooms/[roomId] — archive a room (soft delete).
+// Room→Station cascades to Session/Reservation (see prisma/schema.prisma),
+// so a hard delete would wipe that room's play history; we set archivedAt
+// instead and hide it from the normal room list. Blocked outright while any
+// of its stations is mid-session (BUSY) — that means real money is on the
+// table for an unfinished session, so we refuse rather than silently orphan
+// it. Idempotent: archiving an already-archived room just returns it as-is.
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ roomId: string }> }
+) {
+  const { roomId } = await params;
+  const room = await prisma.room.findUnique({
+    where: { id: roomId },
+    include: { stations: { select: { status: true } } },
+  });
+  if (!room) return NextResponse.json({ error: "Room not found" }, { status: 404 });
+
+  const auth = await requireMembership(room.tenantId);
+  if (!auth.ok) return auth.response;
+
+  if (room.archivedAt) {
+    return NextResponse.json({ ok: true, archived: true });
+  }
+
+  if (!canDeleteRoom(room.stations)) {
+    return NextResponse.json(
+      { error: "room-has-active-session" },
+      { status: 409 }
+    );
+  }
+
+  await prisma.room.update({ where: { id: roomId }, data: { archivedAt: new Date() } });
+  return NextResponse.json({ ok: true, archived: true });
 }

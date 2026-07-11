@@ -2,15 +2,16 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { IconCalendarPlus, IconPlayerPlay, IconX } from "@tabler/icons-react";
+import { IconAlertTriangle, IconCalendarPlus, IconPlayerPlay, IconX } from "@tabler/icons-react";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
-import { RESERVABLE_TARIFFS } from "@/lib/reservations";
+import { isReservationImminent, RESERVABLE_TARIFFS } from "@/lib/reservations";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import type { RoomDTO } from "@/lib/room-types";
 import type { TariffKind } from "@/lib/tariffs";
 import type { TranslationKey } from "@/lib/i18n/dictionaries";
@@ -68,7 +69,7 @@ function defaultStartValue(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export function ReservationsPanel({ room }: { room: RoomDTO }) {
+export function ReservationsPanel({ room, now }: { room: RoomDTO; now: number }) {
   const { t, locale } = useI18n();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -140,13 +141,17 @@ export function ReservationsPanel({ room }: { room: RoomDTO }) {
           {reservations.map((r) => {
             const start = new Date(r.startAt);
             const sameDay = start.toDateString() === new Date().toDateString();
+            const imminent = isReservationImminent(r.startAt, now);
             return (
               <div
                 key={r.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3"
+                className={cn(
+                  "flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3",
+                  imminent ? "border-warning bg-warning/10" : "border-border bg-card"
+                )}
               >
                 <div className="flex items-center gap-3">
-                  <Badge variant="secondary" className="font-mono">
+                  <Badge variant={imminent ? "warning" : "secondary"} className="font-mono">
                     {sameDay
                       ? start.toLocaleTimeString(locale, timeFmt)
                       : start.toLocaleString(locale, { ...timeFmt, day: "numeric", month: "short" })}
@@ -158,6 +163,12 @@ export function ReservationsPanel({ room }: { room: RoomDTO }) {
                       <span className="ml-2 text-xs font-normal text-muted-foreground">
                         {t(`tariff.${r.tariffKind}` as TranslationKey)}
                       </span>
+                      {imminent && (
+                        <span className="ml-2 inline-flex items-center gap-1 text-xs font-medium text-warning">
+                          <IconAlertTriangle className="h-3 w-3" />
+                          {t("reservation.imminent")}
+                        </span>
+                      )}
                     </div>
                     {r.name && <div className="text-xs text-muted-foreground">{r.name}</div>}
                   </div>

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { notFound, useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { IconDeviceGamepad2 } from "@tabler/icons-react";
+import { IconDeviceGamepad2, IconTrash } from "@tabler/icons-react";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
 import { formatMoney } from "@/lib/format";
 import { PageHeader } from "@/components/ui-patterns/page-header";
@@ -17,7 +17,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 type Room = {
   id: string;
@@ -58,12 +58,22 @@ async function createRoom(clubId: string, values: typeof EMPTY) {
   return res.json();
 }
 
+async function deleteRoom(roomId: string) {
+  const res = await fetch(`/api/rooms/${roomId}`, { method: "DELETE" });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(typeof body.error === "string" ? body.error : `DELETE room failed: ${res.status}`);
+  }
+  return res.json();
+}
+
 export default function ClubPage() {
   const { t } = useI18n();
   const { clubId } = useParams<{ clubId: string }>();
   const queryClient = useQueryClient();
   const [form, setForm] = useState(EMPTY);
   const [open, setOpen] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<Room | null>(null);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["rooms", clubId],
@@ -85,6 +95,20 @@ export default function ClubPage() {
     if (!form.name.trim()) return;
     createRoomMutation.mutate(form);
   }
+
+  const deleteRoomMutation = useMutation({
+    mutationFn: (roomId: string) => deleteRoom(roomId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["rooms", clubId] });
+      setPendingDelete(null);
+      toast.success(t("room.archived"));
+    },
+    onError: (error: Error) => {
+      toast.error(
+        error.message === "room-has-active-session" ? t("room.deleteBlockedSession") : t("common.error")
+      );
+    },
+  });
 
   const set = (k: keyof typeof EMPTY) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -173,11 +197,41 @@ export default function ClubPage() {
                 <Button asChild variant="outline">
                   <Link href={`/clubs/${clubId}/rooms/${r.id}/edit`}>{t("common.edit")}</Link>
                 </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  aria-label={t("room.delete")}
+                  onClick={() => setPendingDelete(r)}
+                >
+                  <IconTrash className="h-4 w-4" />
+                </Button>
               </div>
             </Card>
           ))}
         </div>
       )}
+
+      <Dialog open={!!pendingDelete} onOpenChange={(open) => !open && setPendingDelete(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("room.deleteConfirmTitle")}</DialogTitle>
+            <DialogDescription>{t("room.deleteConfirmBody")}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setPendingDelete(null)}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={deleteRoomMutation.isPending}
+              onClick={() => pendingDelete && deleteRoomMutation.mutate(pendingDelete.id)}
+            >
+              {t("common.delete")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

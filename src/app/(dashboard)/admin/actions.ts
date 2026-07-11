@@ -5,8 +5,9 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth/session";
-import { IMPERSONATION_COOKIE, isAdminUser } from "@/lib/auth/impersonation";
+import { getImpersonation, IMPERSONATION_COOKIE, isAdminUser } from "@/lib/auth/impersonation";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { logAudit } from "@/lib/audit";
 
 async function requireAdmin() {
   const user = await getSessionUser();
@@ -22,6 +23,19 @@ export async function createClub(formData: FormData) {
   if (!name) return;
 
   await prisma.tenant.create({ data: { name } });
+  revalidatePath("/admin");
+}
+
+// Undo an accidental club archive (see DELETE /api/clubs/[clubId]). Only the
+// admin can do this — regular members lose sight of the club the moment it's
+// archived, since it drops out of GET /api/clubs, so the admin panel (which
+// reads Tenant directly, archived or not) is the only place left to reach it.
+export async function restoreClub(formData: FormData) {
+  await requireAdmin();
+  const tenantId = String(formData.get("tenantId") ?? "").trim();
+  if (!tenantId) return;
+
+  await prisma.tenant.update({ where: { id: tenantId }, data: { archivedAt: null } });
   revalidatePath("/admin");
 }
 
@@ -60,12 +74,37 @@ export async function impersonateUser(formData: FormData) {
     sameSite: "lax",
     path: "/",
   });
+
+  await logAudit({
+    actorUserId: admin.id,
+    actorEmail: admin.email ?? null,
+    action: "impersonation.start",
+    targetType: "User",
+    targetId: userId,
+    metadata: { targetEmail: email || null },
+  });
+
   redirect("/clubs");
 }
 
 // No admin guard needed: clearing your own cookie is harmless, and only the
 // admin's cookie ever had an effect in the first place.
 export async function stopImpersonation() {
+  const realUser = await getSessionUser();
+  const impersonation = await getImpersonation(realUser);
+
   (await cookies()).delete(IMPERSONATION_COOKIE);
+
+  if (impersonation) {
+    await logAudit({
+      actorUserId: realUser?.id ?? null,
+      actorEmail: realUser?.email ?? null,
+      action: "impersonation.stop",
+      targetType: "User",
+      targetId: impersonation.userId,
+      metadata: { targetEmail: impersonation.email },
+    });
+  }
+
   redirect("/admin");
 }

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
 import { formatMoney } from "@/lib/format";
+import { MAX_PAGE_SIZE } from "@/lib/listParams";
 import { TARIFFS, fixedPrice, type TariffKind } from "@/lib/tariffs";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -20,10 +21,15 @@ type Customer = { id: string; name: string };
 // instead of "" and is converted back to `undefined` before the API call.
 const NONE = "__none__";
 
+// The customers endpoint is now paginated (see src/lib/listParams.ts), so
+// the picker requests the largest single page instead of "all customers".
+// Known limitation: clubs with more than MAX_PAGE_SIZE customers won't have
+// every customer listed here — searching isn't wired into this picker yet.
 async function fetchCustomers(clubId: string): Promise<Customer[]> {
-  const res = await fetch(`/api/clubs/${clubId}/customers`, { cache: "no-store" });
+  const res = await fetch(`/api/clubs/${clubId}/customers?pageSize=${MAX_PAGE_SIZE}`, { cache: "no-store" });
   if (!res.ok) throw new Error(`GET customers failed: ${res.status}`);
-  return res.json();
+  const data = (await res.json()) as { items: Customer[] };
+  return data.items;
 }
 
 async function bookSession(values: { stationId: string; tariffKind: TariffKind; customerId?: string }) {
@@ -55,10 +61,12 @@ export function BookingModal({
   const [tariff, setTariff] = useState<TariffKind>("HOUR_1");
   const [customerId, setCustomerId] = useState(NONE);
 
-  // Same query key as the customers page ("customers", clubId) — TanStack
-  // Query dedupes/shares this cache entry with that page automatically.
+  // Its own query key/cache entry — the customers page now paginates and
+  // searches (queryKey: ["customers", clubId, page, search]), so this picker
+  // (which wants one large unfiltered page) can no longer share that cache
+  // entry the way it used to.
   const { data: customers = [] } = useQuery({
-    queryKey: ["customers", room.club.id],
+    queryKey: ["customers", "picker", room.club.id],
     queryFn: () => fetchCustomers(room.club.id),
   });
 

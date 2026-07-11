@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { IconChartHistogram } from "@tabler/icons-react";
@@ -9,14 +10,20 @@ import { ColumnChart, BarList } from "@/components/analytics/charts";
 import { PageHeader } from "@/components/ui-patterns/page-header";
 import { EmptyState } from "@/components/ui-patterns/empty-state";
 import { ErrorState } from "@/components/ui-patterns/error-state";
+import {
+  DateRangePicker,
+  dateRangeSearchParams,
+  defaultDateRangeValue,
+  type DateRangeValue,
+} from "@/components/ui-patterns/date-range-picker";
 import { Card } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import type { TranslationKey } from "@/lib/i18n/dictionaries";
 
 type Analytics = {
   totals: {
-    revenue30d: number;
-    sessions30d: number;
+    revenue: number;
+    sessionsCount: number;
     avgCheck: number;
     avgDurationMin: number;
     activeNow: number;
@@ -29,8 +36,9 @@ type Analytics = {
   topCustomers: { name: string; count: number; revenue: number }[];
 };
 
-async function fetchAnalytics(clubId: string): Promise<Analytics> {
-  const res = await fetch(`/api/clubs/${clubId}/analytics`, { cache: "no-store" });
+async function fetchAnalytics(clubId: string, range: DateRangeValue): Promise<Analytics> {
+  const params = dateRangeSearchParams(range);
+  const res = await fetch(`/api/clubs/${clubId}/analytics?${params}`, { cache: "no-store" });
   if (!res.ok) throw new Error(`GET analytics failed: ${res.status}`);
   return res.json();
 }
@@ -41,17 +49,33 @@ const MONDAY = new Date(2024, 0, 1);
 export default function AnalyticsPage() {
   const { t, locale } = useI18n();
   const { clubId } = useParams<{ clubId: string }>();
+  const [range, setRange] = useState<DateRangeValue>(() => defaultDateRangeValue("month"));
 
   const {
     data,
     isLoading,
     isError,
     refetch,
-  } = useQuery({ queryKey: ["analytics", clubId], queryFn: () => fetchAnalytics(clubId) });
+  } = useQuery({
+    queryKey: ["analytics", clubId, range.preset, range.from, range.to],
+    queryFn: () => fetchAnalytics(clubId, range),
+  });
 
-  if (isLoading) return <div className="text-muted-foreground">{t("common.loading")}</div>;
+  if (isLoading) {
+    return (
+      <div className="mx-auto max-w-6xl">
+        <PageHeader title={t("analytics.title")} actions={<DateRangePicker value={range} onChange={setRange} />} />
+        <div className="text-muted-foreground">{t("common.loading")}</div>
+      </div>
+    );
+  }
   if (isError || !data) {
-    return <ErrorState message={t("common.error")} onRetry={() => refetch()} retryLabel={t("common.retry")} />;
+    return (
+      <div className="mx-auto max-w-6xl">
+        <PageHeader title={t("analytics.title")} actions={<DateRangePicker value={range} onChange={setRange} />} />
+        <ErrorState message={t("common.error")} onRetry={() => refetch()} retryLabel={t("common.retry")} />
+      </div>
+    );
   }
 
   const money = (v: number) => `${formatMoney(v)} ${t("common.currency")}`;
@@ -97,16 +121,20 @@ export default function AnalyticsPage() {
     sublabel: `${r.count} ${sessionsWord}`,
   }));
 
-  const hasData = data.totals.sessions30d > 0;
+  const hasData = data.totals.sessionsCount > 0;
 
   return (
     <div className="mx-auto max-w-6xl">
-      <PageHeader title={t("analytics.title")} subtitle={t("analytics.subtitle")} />
+      <PageHeader
+        title={t("analytics.title")}
+        subtitle={t("analytics.subtitle")}
+        actions={<DateRangePicker value={range} onChange={setRange} />}
+      />
 
       <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label={t("analytics.revenue30d")}>{money(data.totals.revenue30d)}</StatCard>
-        <StatCard label={t("analytics.sessions30d")} sub={`${t("analytics.avgDuration")}: ${data.totals.avgDurationMin} ${t("analytics.minutes")}`}>
-          {data.totals.sessions30d}
+        <StatCard label={t("analytics.revenueTotal")}>{money(data.totals.revenue)}</StatCard>
+        <StatCard label={t("analytics.sessionsTotal")} sub={`${t("analytics.avgDuration")}: ${data.totals.avgDurationMin} ${t("analytics.minutes")}`}>
+          {data.totals.sessionsCount}
         </StatCard>
         <StatCard label={t("reports.avgCheck")}>{money(data.totals.avgCheck)}</StatCard>
         <StatCard label={t("analytics.activeNow")}>{data.totals.activeNow}</StatCard>

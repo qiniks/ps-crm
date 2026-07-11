@@ -15,6 +15,11 @@ model Tenant {
   id           String        @id @default(cuid())
   name         String
   createdAt    DateTime      @default(now())
+  // Soft-delete marker: set instead of hard-deleting so historical Sessions/
+  // Shifts/Reservations (Prisma cascades on Tenant→everything) survive for
+  // reporting. Null = active. Archived tenants are excluded from the normal
+  // club listing (see /api/clubs) but stay in the DB for the admin panel.
+  archivedAt   DateTime?
   rooms        Room[]
   stations     Station[]
   customers    Customer[]
@@ -22,6 +27,7 @@ model Tenant {
   memberships  Membership[]
   shifts       Shift[]
   reservations Reservation[]
+  auditLogs    AuditLog[]
 }
 
 // A room inside a club (e.g. "Standard hall", "VIP room").
@@ -37,6 +43,10 @@ model Room {
   price5h        Int       @default(0) // fixed price for the 5-hour tariff
   openHourlyRate Int       @default(0) // per-hour rate for the "open / until done" tariff
   createdAt      DateTime  @default(now())
+  // Soft-delete marker, same reasoning as Tenant.archivedAt: Room→Station
+  // cascades to Session/Reservation, so archiving (not deleting) keeps a
+  // room's play history intact for reports. Null = active.
+  archivedAt     DateTime?
   stations       Station[]
 
   @@index([tenantId])
@@ -96,8 +106,10 @@ model Session {
   endedAt       DateTime?
   cost          Int       @default(0)
   status        String    @default("ACTIVE") // ACTIVE | FINISHED
-  // How the finished session was paid: CASH | CARD (null until stopped,
-  // or for sessions finished before payment tracking existed).
+  // How the finished session was paid: CASH | CARD | BALANCE (null until
+  // stopped, or for sessions finished before payment tracking existed).
+  // BALANCE debits the customer's prepaid Customer.balance and, like CARD,
+  // never touches the cash drawer (see expectedCash() in src/lib/shifts.ts).
   paymentMethod String?
   // The cash-register shift the payment landed in (null when no shift was open).
   shift         Shift?    @relation(fields: [shiftId], references: [id], onDelete: SetNull)
@@ -155,10 +167,37 @@ model Membership {
   userId    String // Supabase auth.users.id — not an FK, different schema
   tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   tenantId  String
-  role      String   @default("member") // unused for now, reserved for later permission tiers
+  // OWNER | CASHIER. OWNER can manage this club's membership (invite/remove/
+  // change roles); CASHIER cannot. Defaults to OWNER for backward
+  // compatibility — every membership created before role tiers existed (and
+  // any legacy "member" value) is treated as manage-capable, see
+  // canManageMembers() in src/lib/auth/roles.ts.
+  role      String   @default("OWNER")
   createdAt DateTime @default(now())
 
   @@unique([userId, tenantId])
   @@index([userId])
   @@index([tenantId])
+}
+
+// A record of a sensitive action — who did what to what, and when. Written
+// via the logAudit() helper (src/lib/audit.ts), never mutated afterwards.
+// tenantId is nullable because impersonation start/stop isn't scoped to a
+// club; onDelete: SetNull keeps the log entry around (with tenant context
+// lost) if the tenant is later deleted, instead of cascading it away.
+model AuditLog {
+  id          String   @id @default(cuid())
+  tenant      Tenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  tenantId    String?
+  actorUserId String? // Supabase auth.users.id — not an FK, different schema
+  actorEmail  String? // email snapshot, same pattern as Shift.openedBy
+  action      String // e.g. "session.stop", "shift.close", "impersonation.start"
+  targetType  String? // e.g. "Session", "Shift", "User"
+  targetId    String?
+  metadata    Json? // action-specific details, e.g. a shift's cash difference
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([action])
+  @@index([createdAt])
 }

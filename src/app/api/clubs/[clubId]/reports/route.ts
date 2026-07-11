@@ -1,44 +1,51 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireMembership } from "@/lib/auth/requireMembership";
-import { startOfLocalDay } from "@/lib/time";
+import { parseDateRangeParams } from "@/lib/dateRangeQuery";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/clubs/[clubId]/reports — today's revenue summary + recent sessions.
-// "Today" uses server-local time — see src/lib/time.ts for the assumption.
+// GET /api/clubs/[clubId]/reports?preset=today|week|month|custom&from=&to=
+// Revenue summary + recent sessions for the selected date range (defaults to
+// "today" when no/invalid params are given). Range boundaries use
+// server-local time — see src/lib/time.ts for the assumption.
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ clubId: string }> }
 ) {
   const { clubId } = await params;
   const auth = await requireMembership(clubId);
   if (!auth.ok) return auth.response;
 
-  const startOfDay = startOfLocalDay();
+  const { searchParams } = new URL(req.url);
+  const range = parseDateRangeParams(searchParams, "today");
 
-  const todays = await prisma.session.findMany({
+  const inRange = await prisma.session.findMany({
     where: {
       tenantId: clubId,
       status: "FINISHED",
-      endedAt: { gte: startOfDay },
+      endedAt: { gte: range.from, lt: range.to },
     },
   });
 
-  const revenueToday = todays.reduce((sum, s) => sum + s.cost, 0);
-  const sessionsToday = todays.length;
-  const avgCheck = sessionsToday ? Math.round(revenueToday / sessionsToday) : 0;
+  const revenue = inRange.reduce((sum, s) => sum + s.cost, 0);
+  const sessionsCount = inRange.length;
+  const avgCheck = sessionsCount ? Math.round(revenue / sessionsCount) : 0;
 
   const recent = await prisma.session.findMany({
-    where: { tenantId: clubId, status: "FINISHED" },
+    where: {
+      tenantId: clubId,
+      status: "FINISHED",
+      endedAt: { gte: range.from, lt: range.to },
+    },
     include: { station: true, customer: true },
     orderBy: { endedAt: "desc" },
     take: 20,
   });
 
   return NextResponse.json({
-    revenueToday,
-    sessionsToday,
+    revenue,
+    sessionsCount,
     avgCheck,
     recent: recent.map((s) => ({
       id: s.id,
