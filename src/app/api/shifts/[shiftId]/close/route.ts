@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireMembership } from "@/lib/auth/requireMembership";
 import { getSessionUser } from "@/lib/auth/session";
-import { cashDifference, expectedCash } from "@/lib/shifts";
+import { cashDifference, expectedCash, paymentMethodBreakdown } from "@/lib/shifts";
 import { logAudit, shiftCloseMetadata } from "@/lib/audit";
 
 // POST /api/shifts/[shiftId]/close — close a shift with the counted cash.
@@ -60,5 +60,7 @@ export async function POST(
     ...updated,
     expectedCash: expected,
     difference: cashDifference(expected, closingCash),
+    paymentBreakdown: paymentMethodBreakdown(shift.sessions),
+    sessionsCount: shift.sessions.length,
   });
 }

@@ -24,6 +24,23 @@ export function cashDifference(expected: number, countedCash: number): number {
   return countedCash - expected;
 }
 
+export type PaymentBreakdown = Record<PaymentMethod, { count: number; total: number }>;
+
+// Per-method session count and revenue, for the shift handover summary.
+export function paymentMethodBreakdown(payments: Payment[]): PaymentBreakdown {
+  const breakdown: PaymentBreakdown = {
+    CASH: { count: 0, total: 0 },
+    CARD: { count: 0, total: 0 },
+    BALANCE: { count: 0, total: 0 },
+  };
+  for (const p of payments) {
+    if (!isPaymentMethod(p.paymentMethod)) continue;
+    breakdown[p.paymentMethod].count += 1;
+    breakdown[p.paymentMethod].total += p.cost;
+  }
+  return breakdown;
+}
+
 // Default "open too long" alert window for a cash-register shift.
 export const SHIFT_OPEN_TOO_LONG_MS = 12 * 60 * 60_000;
 

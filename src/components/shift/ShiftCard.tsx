@@ -6,7 +6,7 @@ import { IconAlertTriangle, IconCashRegister } from "@tabler/icons-react";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
 import { useNow } from "@/lib/useNow";
 import { formatMoney } from "@/lib/format";
-import { isShiftOpenTooLong } from "@/lib/shifts";
+import { isShiftOpenTooLong, PAYMENT_METHODS, type PaymentBreakdown } from "@/lib/shifts";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import type { TranslationKey } from "@/lib/i18n/dictionaries";
 
 export type ShiftDTO = {
   id: string;
@@ -32,6 +33,19 @@ export type ShiftDTO = {
 
 export type ShiftsResponse = { current: ShiftDTO | null; history: ShiftDTO[] };
 
+export type ShiftCloseSummary = {
+  id: string;
+  openedBy: string;
+  openedAt: string;
+  closedAt: string | null;
+  openingCash: number;
+  closingCash: number;
+  expectedCash: number;
+  difference: number;
+  paymentBreakdown: PaymentBreakdown;
+  sessionsCount: number;
+};
+
 export async function fetchShifts(clubId: string): Promise<ShiftsResponse> {
   const res = await fetch(`/api/clubs/${clubId}/shifts`, { cache: "no-store" });
   if (!res.ok) throw new Error(`GET shifts failed: ${res.status}`);
@@ -48,7 +62,7 @@ async function openShiftRequest(clubId: string, openingCash: number) {
   return res.json();
 }
 
-async function closeShiftRequest(shiftId: string, closingCash: number) {
+async function closeShiftRequest(shiftId: string, closingCash: number): Promise<ShiftCloseSummary> {
   const res = await fetch(`/api/shifts/${shiftId}/close`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -63,6 +77,7 @@ export function ShiftCard({ clubId }: { clubId: string }) {
   const queryClient = useQueryClient();
   const [dialog, setDialog] = useState<"open" | "close" | null>(null);
   const [cashInput, setCashInput] = useState("");
+  const [handoverSummary, setHandoverSummary] = useState<ShiftCloseSummary | null>(null);
   // Minute-granularity clock is enough for a multi-hour "open too long" threshold.
   const now = useNow(60_000);
 
@@ -80,7 +95,10 @@ export function ShiftCard({ clubId }: { clubId: string }) {
   const closeMutation = useMutation({
     mutationFn: ({ shiftId, closingCash }: { shiftId: string; closingCash: number }) =>
       closeShiftRequest(shiftId, closingCash),
-    onSuccess: invalidate,
+    onSuccess: (summary) => {
+      invalidate();
+      setHandoverSummary(summary);
+    },
   });
 
   const money = (v: number) => `${formatMoney(v)} ${t("common.currency")}`;
@@ -196,6 +214,80 @@ export function ShiftCard({ clubId }: { clubId: string }) {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={handoverSummary !== null} onOpenChange={(v) => !v && setHandoverSummary(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t("shift.handoverTitle")}</DialogTitle>
+          </DialogHeader>
+          {handoverSummary && (
+            <div className="flex flex-col gap-4">
+              <div className="text-sm text-muted-foreground">
+                {handoverSummary.openedBy}
+                {" · "}
+                {t("shift.openedAt")} {new Date(handoverSummary.openedAt).toLocaleString(locale)}
+                {handoverSummary.closedAt && (
+                  <>
+                    {" · "}
+                    {t("shift.closedAt")} {new Date(handoverSummary.closedAt).toLocaleString(locale)}
+                  </>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 rounded-lg bg-muted p-3 text-sm">
+                <ShiftStat label={t("shift.openingCash")} value={money(handoverSummary.openingCash)} />
+                <ShiftStat label={t("shift.closingCash")} value={money(handoverSummary.closingCash)} />
+                <ShiftStat label={t("shift.expectedCash")} value={money(handoverSummary.expectedCash)} />
+                <div>
+                  <div className="text-xs text-muted-foreground">{t("shift.difference")}</div>
+                  <div
+                    className={cn(
+                      "font-semibold",
+                      handoverSummary.difference === 0
+                        ? "text-foreground"
+                        : handoverSummary.difference < 0
+                        ? "text-destructive"
+                        : "text-success"
+                    )}
+                  >
+                    {handoverSummary.difference > 0 ? "+" : ""}
+                    {money(handoverSummary.difference)}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  {t("shift.paymentBreakdown")}
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  {PAYMENT_METHODS.map((method) => (
+                    <div key={method} className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">{t(`payment.${method}` as TranslationKey)}</span>
+                      <span className="font-medium text-foreground">
+                        {handoverSummary.paymentBreakdown[method].count} ·{" "}
+                        {money(handoverSummary.paymentBreakdown[method].total)}
+                      </span>
+                    </div>
+                  ))}
+                  <div className="mt-1 flex items-center justify-between border-t border-border pt-1.5 text-sm font-semibold text-foreground">
+                    <span>{t("shift.sessions")}</span>
+                    <span>{handoverSummary.sessionsCount}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter className="print:hidden">
+            <Button type="button" variant="ghost" onClick={() => setHandoverSummary(null)}>
+              {t("common.close")}
+            </Button>
+            <Button type="button" onClick={() => window.print()}>
+              {t("common.print")}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </Card>
