@@ -6,8 +6,13 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth/session";
 import { getImpersonation, IMPERSONATION_COOKIE, isAdminUser } from "@/lib/auth/impersonation";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { MEMBERSHIP_ROLES, type MembershipRole } from "@/lib/auth/roles";
+import { createConfirmedUser } from "@/lib/supabase/createUser";
 import { logAudit } from "@/lib/audit";
+
+function isMembershipRole(value: unknown): value is MembershipRole {
+  return typeof value === "string" && (MEMBERSHIP_ROLES as string[]).includes(value);
+}
 
 async function requireAdmin() {
   const user = await getSessionUser();
@@ -39,26 +44,35 @@ export async function restoreClub(formData: FormData) {
   revalidatePath("/admin");
 }
 
-export async function inviteMember(formData: FormData) {
+export type CreateMemberState = { error: string | null };
+
+// The admin can assign either role directly — this is the only place in the
+// app a new OWNER can be created; a club's own Members page (see
+// POST /api/clubs/[clubId]/members) only ever creates CASHIER accounts.
+export async function createMember(
+  _prevState: CreateMemberState,
+  formData: FormData
+): Promise<CreateMemberState> {
   await requireAdmin();
   const email = String(formData.get("email") ?? "").trim();
+  const password = String(formData.get("password") ?? "");
   const tenantId = String(formData.get("tenantId") ?? "").trim();
-  if (!email || !tenantId) return;
+  const roleValue = formData.get("role");
+  const role: MembershipRole = isMembershipRole(roleValue) ? roleValue : "CASHIER";
 
-  const supabaseAdmin = createSupabaseAdminClient();
-  const { data, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?next=/set-password`,
-  });
+  if (!email) return { error: "Email is required" };
+  if (!tenantId) return { error: "Club is required" };
+  if (password.length < 8) return { error: "Password must be at least 8 characters" };
 
-  if (error || !data.user) {
-    throw new Error(`Failed to invite ${email}: ${error?.message ?? "unknown error"}`);
+  try {
+    const user = await createConfirmedUser(email, password);
+    await prisma.membership.create({ data: { userId: user.id, tenantId, role } });
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Failed to create user" };
   }
 
-  await prisma.membership.create({
-    data: { userId: data.user.id, tenantId },
-  });
-
   revalidatePath("/admin");
+  return { error: null };
 }
 
 // Start browsing the app as another user. Only the admin can set this, and the

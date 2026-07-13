@@ -1,17 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireMembership } from "@/lib/auth/requireMembership";
-import { canManageMembers, MEMBERSHIP_ROLES, type MembershipRole } from "@/lib/auth/roles";
+import { canManageMembers } from "@/lib/auth/roles";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createConfirmedUser } from "@/lib/supabase/createUser";
 
 export const dynamic = "force-dynamic";
 
-function isMembershipRole(value: unknown): value is MembershipRole {
-  return typeof value === "string" && (MEMBERSHIP_ROLES as string[]).includes(value);
-}
-
 // GET /api/clubs/[clubId]/members — this club's memberships, with email and
-// pending-invite status resolved against Supabase Auth. Any member of the
+// sign-in status resolved against Supabase Auth. Any member of the
 // club can view the list; `canManage` tells the client whether to render
 // mutation controls (only an OWNER, see canManageMembers(), gets `true`).
 export async function GET(
@@ -28,7 +25,7 @@ export async function GET(
   });
 
   const own = memberships.find((m) => m.userId === auth.userId);
-  const canManage = canManageMembers(own?.role ?? null, false);
+  const canManage = canManageMembers(own?.role ?? null, auth.isSuperAdmin);
 
   const supabaseAdmin = createSupabaseAdminClient();
   const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 200 });
@@ -46,8 +43,7 @@ export async function GET(
         userId: m.userId,
         email: user?.email ?? null,
         role: m.role,
-        // A user Supabase created via inviteUserByEmail exists but has never
-        // signed in until they set a password — that's what "pending" means.
+        // "pending" just means this account has never been used to sign in yet.
         pending: !user?.last_sign_in_at,
         isSelf: m.userId === auth.userId,
       };
@@ -55,8 +51,10 @@ export async function GET(
   });
 }
 
-// POST /api/clubs/[clubId]/members — invite a new member directly into this
-// club with a chosen role. Only an existing manager (OWNER) may invite.
+// POST /api/clubs/[clubId]/members — create a new user directly into this
+// club with a password. Only an existing manager (OWNER) may do this, and
+// only as CASHIER — creating (or promoting to) OWNER is only possible via the
+// global admin panel (see createMember in admin/actions.ts).
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ clubId: string }> }
@@ -69,29 +67,30 @@ export async function POST(
     where: { userId_tenantId: { userId: auth.userId, tenantId: clubId } },
     select: { role: true },
   });
-  if (!canManageMembers(own?.role ?? null, false)) {
+  if (!canManageMembers(own?.role ?? null, auth.isSuperAdmin)) {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const email = String(body.email ?? "").trim();
-  const role: MembershipRole = isMembershipRole(body.role) ? body.role : "CASHIER";
+  const password = String(body.password ?? "");
   if (!email) return NextResponse.json({ error: "email is required" }, { status: 400 });
+  if (password.length < 8) {
+    return NextResponse.json({ error: "password must be at least 8 characters" }, { status: 400 });
+  }
 
-  const supabaseAdmin = createSupabaseAdminClient();
-  const { data, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?next=/set-password`,
-  });
-
-  if (error || !data.user) {
+  let user;
+  try {
+    user = await createConfirmedUser(email, password);
+  } catch (error) {
     return NextResponse.json(
-      { error: `Failed to invite ${email}: ${error?.message ?? "unknown error"}` },
+      { error: error instanceof Error ? error.message : "Failed to create user" },
       { status: 400 }
     );
   }
 
   const membership = await prisma.membership.create({
-    data: { userId: data.user.id, tenantId: clubId, role },
+    data: { userId: user.id, tenantId: clubId, role: "CASHIER" },
   });
 
   return NextResponse.json(membership, { status: 201 });

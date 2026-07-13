@@ -34,11 +34,22 @@ export async function getImpersonation(realUser?: User | null): Promise<Imperson
   return parseImpersonationCookie(store.get(IMPERSONATION_COOKIE)?.value);
 }
 
-// Who the request should be treated as: the impersonated user when the admin
-// is impersonating, otherwise the real session user.
-export async function getEffectiveUserId(): Promise<string | null> {
+export type EffectiveAccess = { userId: string; isSuperAdmin: boolean };
+
+// Who the request should be treated as, plus whether that's the real
+// super-admin acting as themselves (not impersonating). `isSuperAdmin` is
+// false while impersonating — an impersonating admin gets exactly the access
+// of the user they're viewing as, never their own super-admin privileges.
+export async function getEffectiveAccess(): Promise<EffectiveAccess | null> {
   const user = await getSessionUser();
   if (!user) return null;
   const impersonation = await getImpersonation(user);
-  return impersonation?.userId ?? user.id;
+  if (impersonation) return { userId: impersonation.userId, isSuperAdmin: false };
+  return { userId: user.id, isSuperAdmin: isAdminUser(user) };
+}
+
+// Who the request should be treated as: the impersonated user when the admin
+// is impersonating, otherwise the real session user.
+export async function getEffectiveUserId(): Promise<string | null> {
+  return (await getEffectiveAccess())?.userId ?? null;
 }

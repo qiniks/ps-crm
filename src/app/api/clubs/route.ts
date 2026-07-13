@@ -1,34 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import { getEffectiveUserId } from "@/lib/auth/impersonation";
+import { getEffectiveAccess } from "@/lib/auth/impersonation";
+import { getVisibleTenantScope } from "@/lib/auth/tenantScope";
 import { parseListParams } from "@/lib/listParams";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/clubs — paginated, optionally-searched (by name) clubs the
 // current (effective) user is a member of, with room counts. When the admin
-// impersonates someone, they see that user's clubs. Query params: page,
-// pageSize, q. Returns { items, total, page, pageSize }.
+// impersonates someone, they see that user's clubs. The super-admin, when NOT
+// impersonating, instead sees every club in the system — they have implicit
+// access to all of them (see requireMembership()), so the membership-scoped
+// list would otherwise just be empty/misleading for them. Query params:
+// page, pageSize, q. Returns { items, total, page, pageSize }.
 export async function GET(req: NextRequest) {
-  const userId = await getEffectiveUserId();
-  if (!userId) {
+  const access = await getEffectiveAccess();
+  if (!access) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  // A user's own membership list isn't a user-facing paginated view — it's
-  // just used to scope the tenant search below, so it's left unbounded here.
-  const memberships = await prisma.membership.findMany({
-    where: { userId },
-    select: { tenantId: true },
-  });
+  const tenantScope = await getVisibleTenantScope(access);
 
   const { skip, take, search, page, pageSize } = parseListParams(req.nextUrl.searchParams);
 
   // Archived (soft-deleted) clubs are excluded — see DELETE /api/clubs/[clubId].
   // See the customers route for the `mode: "insensitive"` Postgres caveat.
   const where: Prisma.TenantWhereInput = {
-    id: { in: memberships.map((m) => m.tenantId) },
+    ...tenantScope,
     archivedAt: null,
     ...(search ? { name: { contains: search, mode: "insensitive" } } : {}),
   };

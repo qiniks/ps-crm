@@ -9,16 +9,19 @@ function isMembershipRole(value: unknown): value is MembershipRole {
   return typeof value === "string" && (MEMBERSHIP_ROLES as string[]).includes(value);
 }
 
-async function requireManager(clubId: string, userId: string): Promise<boolean> {
+async function requireManager(clubId: string, userId: string, isSuperAdmin: boolean): Promise<boolean> {
   const own = await prisma.membership.findUnique({
     where: { userId_tenantId: { userId, tenantId: clubId } },
     select: { role: true },
   });
-  return canManageMembers(own?.role ?? null, false);
+  return canManageMembers(own?.role ?? null, isSuperAdmin);
 }
 
 // PATCH /api/clubs/[clubId]/members/[membershipId] — change a member's role.
-// Only an existing manager (OWNER) may change roles.
+// Only an existing manager (OWNER) may change roles, and only down to
+// CASHIER: promoting a member to OWNER isn't allowed here, matching the same
+// restriction on creation (see POST above) — OWNER is only ever granted via
+// the global admin panel.
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ clubId: string; membershipId: string }> }
@@ -26,7 +29,7 @@ export async function PATCH(
   const { clubId, membershipId } = await params;
   const auth = await requireMembership(clubId);
   if (!auth.ok) return auth.response;
-  if (!(await requireManager(clubId, auth.userId))) {
+  if (!(await requireManager(clubId, auth.userId, auth.isSuperAdmin))) {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 
@@ -39,6 +42,9 @@ export async function PATCH(
   if (!isMembershipRole(body.role)) {
     return NextResponse.json({ error: "role must be one of OWNER, CASHIER" }, { status: 400 });
   }
+  if (body.role === "OWNER") {
+    return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+  }
 
   const updated = await prisma.membership.update({
     where: { id: membershipId },
@@ -48,11 +54,11 @@ export async function PATCH(
 }
 
 // DELETE /api/clubs/[clubId]/members/[membershipId] — remove a member's
-// access to this club. The same action revokes a pending invite: an invited
-// user who never signed in is still just a Membership row, so deleting it
-// here removes their access before they ever had any. Only an existing
-// manager (OWNER) may remove members, and a manager can't remove themselves
-// (avoids silently locking every manager out of a club with one click).
+// access to this club, whether or not they've ever signed in — a member who
+// never signed in is still just a Membership row, so deleting it here works
+// the same way. Only an existing manager (OWNER) may remove members, and a
+// manager can't remove themselves (avoids silently locking every manager out
+// of a club with one click).
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ clubId: string; membershipId: string }> }
@@ -60,7 +66,7 @@ export async function DELETE(
   const { clubId, membershipId } = await params;
   const auth = await requireMembership(clubId);
   if (!auth.ok) return auth.response;
-  if (!(await requireManager(clubId, auth.userId))) {
+  if (!(await requireManager(clubId, auth.userId, auth.isSuperAdmin))) {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 

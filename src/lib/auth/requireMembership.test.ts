@@ -2,15 +2,25 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { getSessionUser } = vi.hoisted(() => ({ getSessionUser: vi.fn() }));
 const { findMany } = vi.hoisted(() => ({ findMany: vi.fn() }));
+const { findUnique } = vi.hoisted(() => ({ findUnique: vi.fn() }));
+const { getCookie } = vi.hoisted(() => ({ getCookie: vi.fn() }));
 
 vi.mock("./session", () => ({ getSessionUser }));
-vi.mock("@/lib/prisma", () => ({ prisma: { membership: { findMany } } }));
+vi.mock("@/lib/prisma", () => ({
+  prisma: { membership: { findMany }, tenant: { findUnique } },
+}));
+vi.mock("next/headers", () => ({
+  cookies: async () => ({ get: getCookie }),
+}));
 
 import { requireMembership } from "./requireMembership";
 
 beforeEach(() => {
   getSessionUser.mockReset();
   findMany.mockReset();
+  findUnique.mockReset();
+  getCookie.mockReset();
+  getCookie.mockReturnValue(undefined);
 });
 
 describe("requireMembership", () => {
@@ -39,6 +49,28 @@ describe("requireMembership", () => {
 
     const result = await requireMembership("tenant-1");
 
-    expect(result).toEqual({ ok: true, userId: "user-1" });
+    expect(result).toEqual({ ok: true, userId: "user-1", isSuperAdmin: false });
+  });
+
+  it("grants the super-admin access to any existing tenant without a membership row", async () => {
+    vi.stubEnv("ADMIN_EMAIL", "admin@example.com");
+    getSessionUser.mockResolvedValue({ id: "admin-1", email: "admin@example.com" });
+    findUnique.mockResolvedValue({ id: "tenant-1" });
+
+    const result = await requireMembership("tenant-1");
+
+    expect(result).toEqual({ ok: true, userId: "admin-1", isSuperAdmin: true });
+    expect(findMany).not.toHaveBeenCalled();
+  });
+
+  it("404s the super-admin for a tenant that doesn't exist", async () => {
+    vi.stubEnv("ADMIN_EMAIL", "admin@example.com");
+    getSessionUser.mockResolvedValue({ id: "admin-1", email: "admin@example.com" });
+    findUnique.mockResolvedValue(null);
+
+    const result = await requireMembership("no-such-tenant");
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.response.status).toBe(404);
   });
 });

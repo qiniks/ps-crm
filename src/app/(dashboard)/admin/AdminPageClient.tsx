@@ -1,22 +1,133 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { IconLogin2, IconHistory } from "@tabler/icons-react";
+import { IconLogin2, IconHistory, IconUserPlus } from "@tabler/icons-react";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import type {
   createClub as CreateClub,
+  createMember as CreateMember,
   impersonateUser as ImpersonateUser,
-  inviteMember as InviteMember,
   restoreClub as RestoreClub,
 } from "./actions";
 
 type Club = { id: string; name: string; archivedAt: Date | null };
+
+function CreateMemberDialog({
+  clubs,
+  createMember,
+}: {
+  clubs: Club[];
+  createMember: typeof CreateMember;
+}) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+
+  async function handleSubmit(formData: FormData) {
+    setPending(true);
+    setError(null);
+    const result = await createMember({ error: null }, formData);
+    setPending(false);
+    if (result.error) {
+      setError(result.error);
+    } else {
+      setOpen(false);
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) setError(null);
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button size="sm" className="gap-1.5">
+          <IconUserPlus className="h-3.5 w-3.5" />
+          {t("admin.createUser")}
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t("admin.createMember")}</DialogTitle>
+        </DialogHeader>
+        <form action={handleSubmit} className="flex flex-col gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="member-email">{t("auth.email")}</Label>
+            <Input id="member-email" name="email" type="email" placeholder={t("auth.email")} required />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="member-password">{t("auth.password")}</Label>
+            <Input
+              id="member-password"
+              name="password"
+              type="password"
+              placeholder={t("auth.password")}
+              required
+              minLength={8}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>{t("admin.selectClub")}</Label>
+            <Select name="tenantId" required>
+              <SelectTrigger>
+                <SelectValue placeholder={t("admin.selectClub")} />
+              </SelectTrigger>
+              <SelectContent>
+                {clubs.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>{t("members.role")}</Label>
+            <Select name="role" defaultValue="CASHIER">
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="CASHIER">{t("members.roleCashier")}</SelectItem>
+                <SelectItem value="OWNER">{t("members.roleOwner")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {error && <div className="text-sm text-destructive">{error}</div>}
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="ghost">
+                {t("common.cancel")}
+              </Button>
+            </DialogClose>
+            <Button disabled={pending}>{pending ? t("common.creating") : t("admin.createUser")}</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export type AdminUserRow = {
   id: string;
@@ -30,14 +141,14 @@ export function AdminPageClient({
   clubs,
   users,
   createClub,
-  inviteMember,
+  createMember,
   impersonateUser,
   restoreClub,
 }: {
   clubs: Club[];
   users: AdminUserRow[];
   createClub: typeof CreateClub;
-  inviteMember: typeof InviteMember;
+  createMember: typeof CreateMember;
   impersonateUser: typeof ImpersonateUser;
   restoreClub: typeof RestoreClub;
 }) {
@@ -57,43 +168,17 @@ export function AdminPageClient({
         </Button>
       </div>
 
-      <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2">
-        <Card className="p-5">
-          <CardHeader className="p-0 pb-3">
-            <CardTitle className="text-lg">{t("admin.createClub")}</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <form action={createClub} className="flex gap-3">
-              <Input name="name" placeholder={t("clubs.name")} required className="flex-1" />
-              <Button>{t("common.create")}</Button>
-            </form>
-          </CardContent>
-        </Card>
-
-        <Card className="p-5">
-          <CardHeader className="p-0 pb-3">
-            <CardTitle className="text-lg">{t("admin.inviteMember")}</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <form action={inviteMember} className="flex flex-col gap-3">
-              <Input name="email" type="email" placeholder={t("auth.email")} required />
-              <Select name="tenantId" required>
-                <SelectTrigger>
-                  <SelectValue placeholder={t("admin.selectClub")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {activeClubs.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button>{t("admin.sendInvite")}</Button>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
+      <Card className="mb-8 max-w-md p-5">
+        <CardHeader className="p-0 pb-3">
+          <CardTitle className="text-lg">{t("admin.createClub")}</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <form action={createClub} className="flex gap-3">
+            <Input name="name" placeholder={t("clubs.name")} required className="flex-1" />
+            <Button>{t("common.create")}</Button>
+          </form>
+        </CardContent>
+      </Card>
 
       {archivedClubs.length > 0 && (
         <>
@@ -131,7 +216,10 @@ export function AdminPageClient({
         </>
       )}
 
-      <h2 className="mb-3 text-lg font-semibold text-foreground">{t("admin.users")}</h2>
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-foreground">{t("admin.users")}</h2>
+        <CreateMemberDialog clubs={activeClubs} createMember={createMember} />
+      </div>
       <div className="overflow-hidden rounded-xl border border-border">
         <Table>
           <TableHeader>

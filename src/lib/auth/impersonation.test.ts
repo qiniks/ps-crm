@@ -8,7 +8,7 @@ vi.mock("next/headers", () => ({
   cookies: async () => ({ get: getCookie }),
 }));
 
-import { getEffectiveUserId, getImpersonation, IMPERSONATION_COOKIE } from "./impersonation";
+import { getEffectiveAccess, getEffectiveUserId, getImpersonation, IMPERSONATION_COOKIE } from "./impersonation";
 
 const ADMIN = { id: "admin-1", email: "admin@example.com" };
 const MEMBER = { id: "user-1", email: "user@example.com" };
@@ -66,5 +66,33 @@ describe("getEffectiveUserId", () => {
     setCookie({ userId: "user-1", email: "user@example.com" });
 
     expect(await getEffectiveUserId()).toBe("user-1");
+  });
+});
+
+describe("getEffectiveAccess", () => {
+  it("returns null when unauthenticated", async () => {
+    getSessionUser.mockResolvedValue(null);
+    expect(await getEffectiveAccess()).toBeNull();
+  });
+
+  it("is not super-admin for a regular member", async () => {
+    getSessionUser.mockResolvedValue(MEMBER);
+    getCookie.mockReturnValue(undefined);
+
+    expect(await getEffectiveAccess()).toEqual({ userId: "user-1", isSuperAdmin: false });
+  });
+
+  it("is super-admin for the admin acting as themselves", async () => {
+    getSessionUser.mockResolvedValue(ADMIN);
+    getCookie.mockReturnValue(undefined);
+
+    expect(await getEffectiveAccess()).toEqual({ userId: "admin-1", isSuperAdmin: true });
+  });
+
+  it("is not super-admin while the admin is impersonating", async () => {
+    getSessionUser.mockResolvedValue(ADMIN);
+    setCookie({ userId: "user-1", email: "user@example.com" });
+
+    expect(await getEffectiveAccess()).toEqual({ userId: "user-1", isSuperAdmin: false });
   });
 });

@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth/session";
 import { isAdminUser } from "@/lib/auth/impersonation";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { createClub, impersonateUser, inviteMember, restoreClub } from "./actions";
+import { createClub, createMember, impersonateUser, restoreClub } from "./actions";
 import { AdminPageClient, type AdminUserRow } from "./AdminPageClient";
 
 export default async function AdminPage() {
@@ -43,7 +43,7 @@ export default async function AdminPage() {
       clubs={clubs}
       users={users}
       createClub={createClub}
-      inviteMember={inviteMember}
+      createMember={createMember}
       impersonateUser={impersonateUser}
       restoreClub={restoreClub}
     />
