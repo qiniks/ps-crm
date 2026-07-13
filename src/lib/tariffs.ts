@@ -56,6 +56,29 @@ export function openCost(startedAt: Date, endedAt: Date, openHourlyRate: number)
   return Math.round(hours * openHourlyRate);
 }
 
+// New plannedEndAt/cost after extending an active fixed-tariff session by
+// another tariff block: pushes plannedEndAt out by the tariff's duration
+// (from the existing planned end, not from now — an overtime session gets
+// its overtime absorbed into the extension rather than restarting the clock)
+// and adds the tariff's up-front price to the running cost. Throws for OPEN
+// since it has no plannedEndAt to push out; callers validate tariffKind
+// against the fixed set at the API boundary before reaching this.
+export function extendSession(
+  session: { plannedEndAt: Date | string; cost: number },
+  room: RoomPricing,
+  tariffKind: TariffKind
+): { plannedEndAt: Date; cost: number } {
+  const hours = tariffHours(tariffKind);
+  const price = fixedPrice(room, tariffKind);
+  if (hours == null || price == null) {
+    throw new Error(`cannot extend a session with tariff ${tariffKind}`);
+  }
+  return {
+    plannedEndAt: new Date(new Date(session.plannedEndAt).getTime() + hours * 3_600_000),
+    cost: session.cost + price,
+  };
+}
+
 // Cost of a session if it were stopped right now: the up-front fixed price
 // for fixed tariffs, or elapsed time * hourly rate for OPEN. Shared by every
 // place that shows a live/running cost (floor plan, stop dialog) so they

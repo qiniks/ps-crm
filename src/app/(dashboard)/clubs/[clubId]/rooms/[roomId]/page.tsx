@@ -9,7 +9,7 @@ import { IconCircleFilled, IconEdit } from "@tabler/icons-react";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
 import { useNow } from "@/lib/useNow";
 import { formatDuration, formatMoney } from "@/lib/format";
-import { liveCost } from "@/lib/tariffs";
+import { fixedPrice, liveCost, type TariffKind } from "@/lib/tariffs";
 import { canPayFromBalance, PAYMENT_METHODS, type PaymentMethod } from "@/lib/shifts";
 import { StationMarker } from "@/components/room/StationMarker";
 import { BookingModal } from "@/components/room/BookingModal";
@@ -35,6 +35,19 @@ async function stopSession(sessionId: string, paymentMethod: PaymentMethod) {
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error ?? `POST stop failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+async function extendSession(sessionId: string, tariffKind: TariffKind) {
+  const res = await fetch(`/api/sessions/${sessionId}/extend`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tariffKind }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error ?? `POST extend failed: ${res.status}`);
   }
   return res.json();
 }
@@ -67,6 +80,18 @@ export default function RoomViewPage() {
     },
   });
 
+  const extendMutation = useMutation({
+    mutationFn: ({ sessionId, tariffKind }: { sessionId: string; tariffKind: TariffKind }) =>
+      extendSession(sessionId, tariffKind),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["room", roomId] });
+      toast.success(t("station.extendSuccess"));
+    },
+    onError: () => {
+      toast.error(t("station.extendFailed"));
+    },
+  });
+
   function onSelect(s: StationDTO) {
     if (s.status === "BUSY") setStopping(s);
     else setBooking(s);
@@ -76,6 +101,12 @@ export default function RoomViewPage() {
 
   const busy = room.stations.filter((s) => s.status === "BUSY").length;
   const free = room.stations.filter((s) => s.status === "FREE").length;
+  // `stopping` is a snapshot from the click that opened the modal; re-derive
+  // it from the latest room query so an extend (which keeps the modal open)
+  // shows the updated plannedEndAt/cost once the query refetches.
+  const activeStopping = stopping
+    ? room.stations.find((s) => s.id === stopping.id) ?? stopping
+    : null;
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -131,15 +162,19 @@ export default function RoomViewPage() {
         />
       )}
 
-      {stopping?.activeSession && (
+      {activeStopping?.activeSession && (
         <StopModal
-          station={stopping}
+          station={activeStopping}
           room={room}
           now={now}
           pending={stopMutation.isPending}
+          extendPending={extendMutation.isPending}
           onClose={() => setStopping(null)}
           onStop={(paymentMethod) =>
-            stopMutation.mutate({ sessionId: stopping.activeSession!.id, paymentMethod })
+            stopMutation.mutate({ sessionId: activeStopping.activeSession!.id, paymentMethod })
+          }
+          onExtend={(tariffKind) =>
+            extendMutation.mutate({ sessionId: activeStopping.activeSession!.id, tariffKind })
           }
         />
       )}
@@ -147,20 +182,26 @@ export default function RoomViewPage() {
   );
 }
 
+const EXTEND_TARIFFS: TariffKind[] = ["HOUR_1", "HOUR_3", "HOUR_5"];
+
 function StopModal({
   station,
   room,
   now,
   pending,
+  extendPending,
   onClose,
   onStop,
+  onExtend,
 }: {
   station: StationDTO;
   room: RoomDTO;
   now: number;
   pending: boolean;
+  extendPending: boolean;
   onClose: () => void;
   onStop: (paymentMethod: PaymentMethod) => void;
+  onExtend: (tariffKind: TariffKind) => void;
 }) {
   const { t } = useI18n();
   const [method, setMethod] = useState<PaymentMethod>("CASH");
@@ -196,6 +237,30 @@ function StopModal({
             {formatMoney(cost)} {t("common.currency")}
           </span>
         </div>
+        {sess.tariffKind !== "OPEN" && (
+          <div>
+            <div className="mb-1.5 text-sm font-medium text-foreground">{t("station.extend")}</div>
+            <div className="grid grid-cols-3 gap-2">
+              {EXTEND_TARIFFS.map((kind) => (
+                <Button
+                  key={kind}
+                  type="button"
+                  variant="outline"
+                  disabled={extendPending}
+                  onClick={() => onExtend(kind)}
+                >
+                  <span className="flex flex-col items-center leading-tight">
+                    <span>{t(`tariff.${kind}` as TranslationKey)}</span>
+                    <span className="text-xs text-muted-foreground">
+                      +{formatMoney(fixedPrice(room, kind) ?? 0)} {t("common.currency")}
+                    </span>
+                  </span>
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div>
           <div className="mb-1.5 text-sm font-medium text-foreground">{t("payment.method")}</div>
           <div className="grid grid-cols-3 gap-2">

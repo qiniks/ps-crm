@@ -172,6 +172,9 @@ export const dictionaries = {
     "station.elapsed": "Прошло",
     "station.cost": "Сумма",
     "station.openTariff": "Открытое время",
+    "station.extend": "Продлить",
+    "station.extendSuccess": "Сессия продлена",
+    "station.extendFailed": "Не удалось продлить сессию",
 
     "booking.title": "Бронирование",
     "booking.station": "Приставка",
@@ -441,6 +444,9 @@ export const dictionaries = {
     "station.elapsed": "Elapsed",
     "station.cost": "Cost",
     "station.openTariff": "Open time",
+    "station.extend": "Extend",
+    "station.extendSuccess": "Session extended",
+    "station.extendFailed": "Could not extend the session",
 
     "booking.title": "Booking",
     "booking.station": "Console",

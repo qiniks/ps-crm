@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { fixedPrice, isSessionEndingSoon, liveCost, openCost, tariffHours } from "./tariffs";
+import {
+  extendSession,
+  fixedPrice,
+  isSessionEndingSoon,
+  liveCost,
+  openCost,
+  tariffHours,
+} from "./tariffs";
 
 const room = { price1h: 150, price3h: 400, price5h: 600, openHourlyRate: 150 };
 
@@ -63,6 +70,37 @@ describe("liveCost", () => {
     const startedAt = "2026-07-08T10:00:00.000Z";
     const now = new Date("2026-07-08T11:00:00.000Z").getTime();
     expect(liveCost({ tariffKind: "OPEN", startedAt }, room, now)).toBe(150);
+  });
+});
+
+describe("extendSession", () => {
+  it("pushes plannedEndAt out by the tariff's duration and adds its price to cost", () => {
+    const plannedEndAt = new Date(2026, 6, 8, 11, 0);
+    const result = extendSession({ plannedEndAt, cost: 150 }, room, "HOUR_1");
+    expect(result.plannedEndAt).toEqual(new Date(2026, 6, 8, 12, 0));
+    expect(result.cost).toBe(300);
+  });
+
+  it("extends from the existing planned end, not from now, so overtime isn't reset", () => {
+    const plannedEndAt = new Date(2026, 6, 8, 10, 0);
+    const result = extendSession({ plannedEndAt, cost: 400 }, room, "HOUR_3");
+    expect(result.plannedEndAt).toEqual(new Date(2026, 6, 8, 13, 0));
+    expect(result.cost).toBe(800);
+  });
+
+  it("accepts a plannedEndAt string, same as the API DTOs use", () => {
+    const result = extendSession(
+      { plannedEndAt: "2026-07-08T10:00:00.000Z", cost: 600 },
+      room,
+      "HOUR_5"
+    );
+    expect(result.plannedEndAt).toEqual(new Date("2026-07-08T15:00:00.000Z"));
+    expect(result.cost).toBe(1200);
+  });
+
+  it("throws for OPEN since it has no plannedEndAt to push out", () => {
+    const plannedEndAt = new Date(2026, 6, 8, 11, 0);
+    expect(() => extendSession({ plannedEndAt, cost: 0 }, room, "OPEN")).toThrow();
   });
 });
 
