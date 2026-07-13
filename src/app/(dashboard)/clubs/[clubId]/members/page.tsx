@@ -13,7 +13,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import {
   Dialog,
@@ -66,16 +65,6 @@ async function createMember(clubId: string, values: { email: string; password: s
   return res.json();
 }
 
-async function updateMemberRole(clubId: string, membershipId: string, role: MembershipRole) {
-  const res = await fetch(`/api/clubs/${clubId}/members/${membershipId}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ role }),
-  });
-  if (!res.ok) throw new Error(`PATCH member failed: ${res.status}`);
-  return res.json();
-}
-
 async function removeMember(clubId: string, membershipId: string) {
   const res = await fetch(`/api/clubs/${clubId}/members/${membershipId}`, { method: "DELETE" });
   if (!res.ok) throw new Error(`DELETE member failed: ${res.status}`);
@@ -107,15 +96,6 @@ export default function MembersPage() {
       toast.success(t("members.created"));
     },
     onError: (err: Error) => toast.error(err.message),
-  });
-
-  const roleMutation = useMutation({
-    mutationFn: ({ membershipId, role }: { membershipId: string; role: MembershipRole }) =>
-      updateMemberRole(clubId, membershipId, role),
-    onSuccess: () => {
-      invalidate();
-      toast.success(t("members.roleUpdated"));
-    },
   });
 
   const removeMutation = useMutation({
@@ -230,29 +210,7 @@ export default function MembersPage() {
                       )}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {canManage && m.role !== "CASHIER" ? (
-                        // Only demoting an OWNER to CASHIER is offered here — promoting a
-                        // CASHIER to OWNER isn't allowed from this page (see PATCH
-                        // /api/clubs/[clubId]/members/[membershipId], which rejects it
-                        // server-side too); OWNER is only ever granted via the admin panel.
-                        <Select
-                          value="OWNER"
-                          onValueChange={(v) =>
-                            roleMutation.mutate({ membershipId: m.id, role: v as MembershipRole })
-                          }
-                          disabled={roleMutation.isPending}
-                        >
-                          <SelectTrigger className="w-36">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="OWNER">{t("members.roleOwner")}</SelectItem>
-                            <SelectItem value="CASHIER">{t("members.roleCashier")}</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        t(ROLE_LABEL[m.role === "CASHIER" ? "CASHIER" : "OWNER"])
-                      )}
+                      {t(ROLE_LABEL[m.role === "CASHIER" ? "CASHIER" : "OWNER"])}
                     </TableCell>
                     <TableCell>
                       <Badge variant={m.pending ? "outline" : "success"}>

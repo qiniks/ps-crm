@@ -84,7 +84,6 @@ export const dictionaries = {
     "members.empty": "В этом клубе пока нет участников",
     "members.readOnlyHint": "Только владелец клуба может управлять участниками",
     "members.created": "Пользователь создан",
-    "members.roleUpdated": "Роль обновлена",
     "members.removed": "Участник удалён",
 
     "audit.title": "Журнал аудита",
@@ -349,7 +348,6 @@ export const dictionaries = {
     "members.empty": "This club has no members yet",
     "members.readOnlyHint": "Only a club owner can manage members",
     "members.created": "User created",
-    "members.roleUpdated": "Role updated",
     "members.removed": "Member removed",
 
     "audit.title": "Audit log",
