@@ -15,6 +15,7 @@ import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { ROOM_CANVAS_HEIGHT, ROOM_CANVAS_SIZES, type RoomCanvasSize } from "@/lib/room-types";
 
 type EditStation = { id: string; name: string; type: string; status: string; posX: number; posY: number };
 type RoomEditData = {
@@ -23,9 +24,23 @@ type RoomEditData = {
   price3h: number;
   price5h: number;
   openHourlyRate: number;
+  canvasSize: RoomCanvasSize;
   stations: EditStation[];
 };
-type RoomPricePatch = Partial<{ name: string; price1h: number; price3h: number; price5h: number; openHourlyRate: number }>;
+type RoomPricePatch = Partial<{
+  name: string;
+  price1h: number;
+  price3h: number;
+  price5h: number;
+  openHourlyRate: number;
+  canvasSize: RoomCanvasSize;
+}>;
+
+const CANVAS_SIZE_LABEL: Record<RoomCanvasSize, "editor.canvasSmall" | "editor.canvasMedium" | "editor.canvasLarge"> = {
+  SMALL: "editor.canvasSmall",
+  MEDIUM: "editor.canvasMedium",
+  LARGE: "editor.canvasLarge",
+};
 
 async function fetchRoom(roomId: string): Promise<RoomEditData> {
   const res = await fetch(`/api/rooms/${roomId}`, { cache: "no-store" });
@@ -105,8 +120,10 @@ export default function RoomEditPage() {
   const [dirty, setDirty] = useState(false);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const [newName, setNewName] = useState("");
+  const [newNameError, setNewNameError] = useState(false);
   const [newType, setNewType] = useState("PS5");
   const [editingPrices, setEditingPrices] = useState(false);
+  const [canvasSize, setCanvasSize] = useState<RoomCanvasSize>("MEDIUM");
   const [roomForm, setRoomForm] = useState({
     name: "",
     price1h: "",
@@ -131,6 +148,7 @@ export default function RoomEditPage() {
         price5h: String(data.price5h),
         openHourlyRate: String(data.openHourlyRate),
       });
+      setCanvasSize(data.canvasSize);
     }
   }, [data]);
 
@@ -182,6 +200,11 @@ export default function RoomEditPage() {
     setEditingPrices(false);
   }
 
+  function changeCanvasSize(size: RoomCanvasSize) {
+    setCanvasSize(size);
+    patchRoomMutation.mutate({ canvasSize: size });
+  }
+
   // Drag bookkeeping (refs so we don't re-render per mousemove).
   const drag = useRef<{ id: string; moved: boolean } | null>(null);
 
@@ -228,7 +251,10 @@ export default function RoomEditPage() {
 
   function addStation(e: React.FormEvent) {
     e.preventDefault();
-    if (!newName.trim()) return;
+    if (!newName.trim()) {
+      setNewNameError(true);
+      return;
+    }
     addStationMutation.mutate({ name: newName, type: newType, posX: 50, posY: 50 });
   }
 
@@ -389,13 +415,20 @@ export default function RoomEditPage() {
         )}
       </Card>
 
-      <form onSubmit={addStation} className="mb-4 flex flex-wrap gap-2">
-        <Input
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          placeholder={t("editor.stationName")}
-          className="max-w-xs"
-        />
+      <form onSubmit={addStation} className="mb-4 flex flex-wrap items-start gap-2">
+        <div className="max-w-xs flex-1">
+          <Input
+            value={newName}
+            onChange={(e) => {
+              setNewName(e.target.value);
+              if (newNameError) setNewNameError(false);
+            }}
+            placeholder={t("editor.stationName")}
+            aria-invalid={newNameError}
+            className={cn(newNameError && "border-destructive focus-visible:ring-destructive")}
+          />
+          {newNameError && <p className="mt-1 text-xs text-destructive">{t("editor.stationNameRequired")}</p>}
+        </div>
         <Select value={newType} onValueChange={setNewType}>
           <SelectTrigger className="w-28">
             <SelectValue />
@@ -408,13 +441,30 @@ export default function RoomEditPage() {
         <Button>+ {t("editor.addStation")}</Button>
       </form>
 
-      <p className="mb-2 text-xs text-muted-foreground">{t("editor.hint")}</p>
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">{t("editor.hint")}</p>
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-muted-foreground">{t("editor.canvasSize")}:</span>
+          {ROOM_CANVAS_SIZES.map((size) => (
+            <Button
+              key={size}
+              type="button"
+              size="sm"
+              variant={canvasSize === size ? "default" : "outline"}
+              onClick={() => changeCanvasSize(size)}
+            >
+              {t(CANVAS_SIZE_LABEL[size])}
+            </Button>
+          ))}
+        </div>
+      </div>
 
       <div className="flex gap-4">
         <div
           ref={canvasRef}
           onPointerMove={onPointerMove}
-          className="relative aspect-[16/9] flex-1 touch-none overflow-hidden rounded-2xl border border-border bg-muted/40 bg-[radial-gradient(circle,hsl(var(--border))_1px,transparent_1px)] [background-size:24px_24px]"
+          style={{ height: ROOM_CANVAS_HEIGHT[canvasSize] }}
+          className="relative w-full flex-1 touch-none overflow-hidden rounded-2xl border border-border bg-muted/40 bg-[radial-gradient(circle,hsl(var(--border))_1px,transparent_1px)] [background-size:24px_24px]"
         >
           {stations.length === 0 && (
             <div className="flex h-full items-center justify-center text-muted-foreground">

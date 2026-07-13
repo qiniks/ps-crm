@@ -17,7 +17,7 @@ import { ReservationsPanel } from "@/components/room/ReservationsPanel";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import type { RoomDTO, StationDTO } from "@/lib/room-types";
+import { ROOM_CANVAS_HEIGHT, type RoomDTO, type StationDTO } from "@/lib/room-types";
 import type { TranslationKey } from "@/lib/i18n/dictionaries";
 
 async function fetchRoom(roomId: string): Promise<RoomDTO> {
@@ -102,7 +102,10 @@ export default function RoomViewPage() {
         </Button>
       </header>
 
-      <div className="relative aspect-[16/9] w-full overflow-hidden rounded-2xl border border-border bg-muted/40 bg-[radial-gradient(circle,hsl(var(--border))_1px,transparent_1px)] [background-size:24px_24px]">
+      <div
+        style={{ height: ROOM_CANVAS_HEIGHT[room.canvasSize] }}
+        className="relative w-full overflow-hidden rounded-2xl border border-border bg-muted/40 bg-[radial-gradient(circle,hsl(var(--border))_1px,transparent_1px)] [background-size:24px_24px]"
+      >
         {room.stations.length === 0 ? (
           <div className="flex h-full items-center justify-center text-muted-foreground">
             {t("editor.emptyHint")}

@@ -39,6 +39,7 @@ CREATE TABLE "Room" (
     "openHourlyRate" INTEGER NOT NULL DEFAULT 0,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "archivedAt" TIMESTAMP(3),
+    "canvasSize" TEXT NOT NULL DEFAULT 'MEDIUM',
 
     CONSTRAINT "Room_pkey" PRIMARY KEY ("id")
 );

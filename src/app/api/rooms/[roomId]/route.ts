@@ -4,6 +4,7 @@ import { requireMembership } from "@/lib/auth/requireMembership";
 import { canDeleteRoom } from "@/lib/deletion";
 import { getSessionUser } from "@/lib/auth/session";
 import { logAudit } from "@/lib/audit";
+import { isRoomCanvasSize } from "@/lib/room-types";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +44,7 @@ export async function GET(
     price3h: room.price3h,
     price5h: room.price5h,
     openHourlyRate: room.openHourlyRate,
+    canvasSize: isRoomCanvasSize(room.canvasSize) ? room.canvasSize : "MEDIUM",
     stations: room.stations.map((s) => {
       const sess = s.sessions[0];
       return {
@@ -89,6 +91,7 @@ export async function PATCH(
   if (body.price3h !== undefined) data.price3h = num(body.price3h);
   if (body.price5h !== undefined) data.price5h = num(body.price5h);
   if (body.openHourlyRate !== undefined) data.openHourlyRate = num(body.openHourlyRate);
+  if (isRoomCanvasSize(body.canvasSize)) data.canvasSize = body.canvasSize;
   // Restore path for an archived room — the only way `archived` is honored
   // here is to un-archive; archiving itself goes through DELETE below so it
   // gets the canDeleteRoom guard.

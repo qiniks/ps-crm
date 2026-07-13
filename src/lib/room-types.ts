@@ -1,5 +1,20 @@
 import type { TariffKind } from "./tariffs";
 
+// Floor-plan canvas height preset. Console positions are percentages of the
+// canvas, so a taller preset spreads out an otherwise-cramped layout with
+// many consoles — shared by the editor and the live room view so both
+// render the room at the same size.
+export const ROOM_CANVAS_SIZES = ["SMALL", "MEDIUM", "LARGE"] as const;
+export type RoomCanvasSize = (typeof ROOM_CANVAS_SIZES)[number];
+export const ROOM_CANVAS_HEIGHT: Record<RoomCanvasSize, number> = {
+  SMALL: 360,
+  MEDIUM: 520,
+  LARGE: 720,
+};
+export function isRoomCanvasSize(value: unknown): value is RoomCanvasSize {
+  return typeof value === "string" && (ROOM_CANVAS_SIZES as readonly string[]).includes(value);
+}
+
 export type ActiveSession = {
   id: string;
   tariffKind: TariffKind;
@@ -28,5 +43,6 @@ export type RoomDTO = {
   price3h: number;
   price5h: number;
   openHourlyRate: number;
+  canvasSize: RoomCanvasSize;
   stations: StationDTO[];
 };

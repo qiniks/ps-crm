@@ -47,6 +47,12 @@ model Room {
   // cascades to Session/Reservation, so archiving (not deleting) keeps a
   // room's play history intact for reports. Null = active.
   archivedAt     DateTime?
+  // Floor-plan canvas height preset: SMALL | MEDIUM | LARGE (see
+  // src/lib/room-types.ts). Console positions are percentages of this
+  // canvas, so a taller canvas spreads out an otherwise-cramped floor plan
+  // with many consoles. Shared by the editor and the live room view so both
+  // render the same layout at the same size.
+  canvasSize     String    @default("MEDIUM")
   stations       Station[]
 
   @@index([tenantId])
