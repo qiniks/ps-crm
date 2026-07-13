@@ -5,6 +5,7 @@ import {
   expectedCash,
   isPaymentMethod,
   isShiftOpenTooLong,
+  paymentMethodBreakdown,
 } from "./shifts";
 
 describe("expectedCash", () => {
@@ -28,6 +29,43 @@ describe("expectedCash", () => {
       { cost: 400, paymentMethod: "BALANCE" },
     ];
     expect(expectedCash(1000, payments)).toBe(1500);
+  });
+});
+
+describe("paymentMethodBreakdown", () => {
+  it("sums cost and counts sessions per payment method", () => {
+    const payments = [
+      { cost: 500, paymentMethod: "CASH" },
+      { cost: 300, paymentMethod: "CARD" },
+      { cost: 200, paymentMethod: "CASH" },
+      { cost: 400, paymentMethod: "BALANCE" },
+    ];
+    expect(paymentMethodBreakdown(payments)).toEqual({
+      CASH: { count: 2, total: 700 },
+      CARD: { count: 1, total: 300 },
+      BALANCE: { count: 1, total: 400 },
+    });
+  });
+
+  it("returns zeroed entries for every method when there are no payments", () => {
+    expect(paymentMethodBreakdown([])).toEqual({
+      CASH: { count: 0, total: 0 },
+      CARD: { count: 0, total: 0 },
+      BALANCE: { count: 0, total: 0 },
+    });
+  });
+
+  it("ignores payments with a null or unrecognized payment method", () => {
+    const payments = [
+      { cost: 500, paymentMethod: "CASH" },
+      { cost: 150, paymentMethod: null },
+      { cost: 999, paymentMethod: "BITCOIN" },
+    ];
+    expect(paymentMethodBreakdown(payments)).toEqual({
+      CASH: { count: 1, total: 500 },
+      CARD: { count: 0, total: 0 },
+      BALANCE: { count: 0, total: 0 },
+    });
   });
 });
 
