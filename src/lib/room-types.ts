@@ -20,6 +20,11 @@ export type ActiveSession = {
   tariffKind: TariffKind;
   startedAt: string;
   plannedEndAt: string | null;
+  // The session's actual accumulated cost — for a fixed tariff this can grow
+  // past the tariff's base price via an extension (see POST
+  // /api/sessions/[id]/extend), so displays must use this rather than
+  // re-deriving a fresh `fixedPrice(room, tariffKind)`.
+  cost: number;
   customerId: string | null;
   customerName: string | null;
   customerBalance: number | null;

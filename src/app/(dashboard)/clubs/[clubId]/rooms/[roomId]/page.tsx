@@ -207,7 +207,12 @@ function StopModal({
   const [method, setMethod] = useState<PaymentMethod>("CASH");
   const sess = station.activeSession!;
   const started = new Date(sess.startedAt).getTime();
-  const cost = liveCost(sess, room, now);
+  // For a fixed tariff, `sess.cost` is the source of truth — it can exceed
+  // the tariff's base price after an extend (see POST
+  // /api/sessions/[id]/extend), which a freshly-derived fixedPrice() would
+  // miss. OPEN sessions have no stored running cost, so they still derive it
+  // live from elapsed time.
+  const cost = sess.tariffKind === "OPEN" ? liveCost(sess, room, now) : sess.cost;
   const balanceEligible = canPayFromBalance(
     sess.customerId ? { balance: sess.customerBalance ?? 0 } : null,
     cost
