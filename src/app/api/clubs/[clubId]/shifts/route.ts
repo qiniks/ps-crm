@@ -34,15 +34,19 @@ export async function GET(
     where: { tenantId: clubId },
     orderBy: { openedAt: "desc" },
     take: HISTORY_LIMIT + 1, // open shift (if any) rides along with history
-    include: { sessions: { select: { cost: true, paymentMethod: true } } },
+    include: {
+      sessions: { select: { cost: true, paymentMethod: true } },
+      sales: { select: { cost: true, paymentMethod: true } },
+    },
   });
 
   const open = shifts.find((s) => s.status === "OPEN");
   const closed = shifts.filter((s) => s.status === "CLOSED").slice(0, HISTORY_LIMIT);
 
   const serialize = (shift: (typeof shifts)[number]) => {
-    const totals = totalsOf(shift.sessions);
-    const expected = expectedCash(shift.openingCash, shift.sessions);
+    const payments = [...shift.sessions, ...shift.sales];
+    const totals = totalsOf(payments);
+    const expected = expectedCash(shift.openingCash, payments);
     return {
       id: shift.id,
       openedBy: shift.openedBy,

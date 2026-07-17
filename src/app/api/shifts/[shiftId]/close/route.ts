@@ -14,7 +14,10 @@ export async function POST(
   const { shiftId } = await params;
   const shift = await prisma.shift.findUnique({
     where: { id: shiftId },
-    include: { sessions: { select: { cost: true, paymentMethod: true } } },
+    include: {
+      sessions: { select: { cost: true, paymentMethod: true } },
+      sales: { select: { cost: true, paymentMethod: true } },
+    },
   });
   if (!shift) return NextResponse.json({ error: "Shift not found" }, { status: 404 });
 
@@ -36,7 +39,8 @@ export async function POST(
     data: { status: "CLOSED", closedAt: new Date(), closingCash },
   });
 
-  const expected = expectedCash(shift.openingCash, shift.sessions);
+  const payments = [...shift.sessions, ...shift.sales];
+  const expected = expectedCash(shift.openingCash, payments);
 
   // The real signed-in user, not the impersonated one — same reasoning as
   // the shift-open route: whoever counted the drawer is who the audit trail
@@ -60,7 +64,7 @@ export async function POST(
     ...updated,
     expectedCash: expected,
     difference: cashDifference(expected, closingCash),
-    paymentBreakdown: paymentMethodBreakdown(shift.sessions),
+    paymentBreakdown: paymentMethodBreakdown(payments),
     sessionsCount: shift.sessions.length,
   });
 }
