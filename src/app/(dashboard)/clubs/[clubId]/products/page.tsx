@@ -287,6 +287,7 @@ export default function ProductsPage() {
                       size="icon"
                       variant="outline"
                       className="h-6 w-6"
+                      aria-label={t("cart.decreaseQuantity")}
                       onClick={() => changeQuantity(l.productId, -1)}
                     >
                       <IconMinus className="h-3 w-3" />
@@ -296,6 +297,7 @@ export default function ProductsPage() {
                       size="icon"
                       variant="outline"
                       className="h-6 w-6"
+                      aria-label={t("cart.increaseQuantity")}
                       onClick={() => changeQuantity(l.productId, 1)}
                     >
                       <IconPlus className="h-3 w-3" />

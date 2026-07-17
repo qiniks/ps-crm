@@ -310,6 +310,8 @@ export const dictionaries = {
     "cart.checkout": "Оформить продажу",
     "cart.checkoutSuccess": "Продажа оформлена",
     "cart.checkoutFailed": "Не удалось оформить продажу",
+    "cart.decreaseQuantity": "Уменьшить количество",
+    "cart.increaseQuantity": "Увеличить количество",
   },
   en: {
     "app.name": "PS Club CRM",
@@ -614,6 +616,8 @@ export const dictionaries = {
     "cart.checkout": "Check out",
     "cart.checkoutSuccess": "Sale completed",
     "cart.checkoutFailed": "Could not complete the sale",
+    "cart.decreaseQuantity": "Decrease quantity",
+    "cart.increaseQuantity": "Increase quantity",
   },
 } satisfies Record<Locale, Record<string, string>>;
 
