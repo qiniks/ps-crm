@@ -28,6 +28,8 @@ model Tenant {
   shifts       Shift[]
   reservations Reservation[]
   auditLogs    AuditLog[]
+  products     Product[]
+  sales        Sale[]
 }
 
 // A room inside a club (e.g. "Standard hall", "VIP room").
@@ -90,6 +92,7 @@ model Customer {
   createdAt    DateTime      @default(now())
   sessions     Session[]
   reservations Reservation[]
+  sales        Sale[]
 
   @@index([tenantId])
 }
@@ -142,6 +145,7 @@ model Shift {
   closingCash Int?
   status      String    @default("OPEN") // OPEN | CLOSED
   sessions    Session[]
+  sales       Sale[]
 
   @@index([tenantId, status])
 }
@@ -206,4 +210,61 @@ model AuditLog {
   @@index([tenantId])
   @@index([action])
   @@index([createdAt])
+}
+
+// A sellable item (drink, snack, controller, etc.) besides console time.
+// Tenant-scoped catalog managed by cashiers, not just owners.
+model Product {
+  id         String     @id @default(cuid())
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId   String
+  name       String
+  price      Int        @default(0) // whole minor units, like Room prices
+  stock      Int        @default(0) // may go negative — sales don't block on insufficient stock
+  imageUrl   String?
+  createdAt  DateTime   @default(now())
+  // Soft-delete marker, same pattern as Room.archivedAt: a product's sale
+  // history (SaleLine) must survive even after it's discontinued.
+  archivedAt DateTime?
+  saleLines  SaleLine[]
+
+  @@index([tenantId])
+}
+
+// One checkout: a single payment event (one paymentMethod, one optional
+// customer, one shift) covering one or more product lines. Mirrors how a
+// Session payment works, but for products instead of console time.
+model Sale {
+  id            String     @id @default(cuid())
+  tenant        Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId      String
+  customer      Customer?  @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customerId    String?
+  cost          Int // sum of line costs
+  paymentMethod String // CASH | CARD | BALANCE
+  shift         Shift?     @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  shiftId       String?
+  createdAt     DateTime   @default(now())
+  createdBy     String // email snapshot, same pattern as Shift.openedBy
+  lines         SaleLine[]
+
+  @@index([tenantId])
+  @@index([shiftId])
+}
+
+// One product line within a Sale. unitPrice/cost are snapshotted at sale
+// time so a later Product.price edit doesn't retroactively change historical
+// sale totals (same reasoning as Session.cost being stored, not re-derived).
+model SaleLine {
+  id        String  @id @default(cuid())
+  sale      Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  saleId    String
+  product   Product @relation(fields: [productId], references: [id])
+  productId String
+  quantity  Int
+  unitPrice Int
+  cost      Int
+
+  @@index([saleId])
+  @@index([productId])
 }
