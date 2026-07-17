@@ -7,6 +7,7 @@ import {
   IconChartHistogram,
   IconDeviceGamepad2,
   IconLogout,
+  IconPackage,
   IconShieldLock,
   IconUserCog,
   IconUsers,
@@ -33,6 +34,7 @@ export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
     ? [
         { href: `/clubs/${clubId}`, key: "nav.rooms", icon: IconDeviceGamepad2 },
         { href: `/clubs/${clubId}/customers`, key: "nav.customers", icon: IconUsers },
+        { href: `/clubs/${clubId}/products`, key: "nav.products", icon: IconPackage },
         { href: `/clubs/${clubId}/reports`, key: "nav.reports", icon: IconChartBar },
         { href: `/clubs/${clubId}/analytics`, key: "nav.analytics", icon: IconChartHistogram },
         { href: `/clubs/${clubId}/members`, key: "nav.members", icon: IconUserCog },
