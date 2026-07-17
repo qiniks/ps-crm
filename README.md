@@ -58,7 +58,11 @@ npm run dev            # http://localhost:3000
 
 1. **Create the tables:** open Supabase → SQL Editor → run **`supabase-setup.sql`**
    (creates all tables + demo data; it drops any previous PS Club CRM tables first).
-2. **Deploy to Vercel:** import the repo, Root Directory `./`, and set the env var
+2. **Create the product-images Storage bucket:** Supabase Dashboard → Storage →
+   New bucket → name `product-images`, "Public bucket" ON. This is a one-time
+   manual step, not managed by `supabase-setup.sql` or `prisma db push` —
+   Storage buckets aren't part of the Postgres schema.
+3. **Deploy to Vercel:** import the repo, Root Directory `./`, and set the env var
    `DATABASE_URL` to your Supabase **pooler** connection string (IPv4 — the direct
    `db.*.supabase.co` host is IPv6-only and fails on Vercel).
 

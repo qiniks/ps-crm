@@ -4,6 +4,13 @@
 -- WARNING: drops existing PS Club CRM tables first (demo data is lost).
 -- Kept in sync by hand with prisma/schema.prisma — if you add/change a
 -- model there, mirror the change here too.
+--
+-- Product photo uploads (see src/app/api/clubs/[clubId]/products/upload-image)
+-- need a public Storage bucket named "product-images", created once via
+-- Supabase Dashboard → Storage → New bucket → name "product-images",
+-- "Public bucket" ON. This is a one-time manual step, not managed by this
+-- SQL file or by `prisma db push` — Storage buckets aren't part of the
+-- Postgres schema.
 -- ============================================================
 
 DROP TABLE IF EXISTS "SaleLine" CASCADE;
