@@ -30,6 +30,15 @@ describe("expectedCash", () => {
     ];
     expect(expectedCash(1000, payments)).toBe(1500);
   });
+
+  it("treats session and sale payments the same way when concatenated", () => {
+    const sessionPayments = [{ cost: 500, paymentMethod: "CASH" }];
+    const salePayments = [
+      { cost: 150, paymentMethod: "CASH" },
+      { cost: 300, paymentMethod: "CARD" },
+    ];
+    expect(expectedCash(1000, [...sessionPayments, ...salePayments])).toBe(1650);
+  });
 });
 
 describe("paymentMethodBreakdown", () => {
@@ -65,6 +74,16 @@ describe("paymentMethodBreakdown", () => {
       CASH: { count: 1, total: 500 },
       CARD: { count: 0, total: 0 },
       BALANCE: { count: 0, total: 0 },
+    });
+  });
+
+  it("combines session and sale payments into one breakdown", () => {
+    const sessionPayments = [{ cost: 500, paymentMethod: "CASH" }];
+    const salePayments = [{ cost: 150, paymentMethod: "CASH" }, { cost: 300, paymentMethod: "BALANCE" }];
+    expect(paymentMethodBreakdown([...sessionPayments, ...salePayments])).toEqual({
+      CASH: { count: 2, total: 650 },
+      CARD: { count: 0, total: 0 },
+      BALANCE: { count: 1, total: 300 },
     });
   });
 });
