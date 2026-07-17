@@ -44,6 +44,18 @@ export async function POST(
     return NextResponse.json({ error: "invalid paymentMethod" }, { status: 400 });
   }
 
+  let verifiedCustomerId: string | null = null;
+  if (body.customerId) {
+    const customer = await prisma.customer.findFirst({
+      where: { id: body.customerId, tenantId: clubId },
+      select: { id: true },
+    });
+    if (!customer) {
+      return NextResponse.json({ error: "customer not found" }, { status: 400 });
+    }
+    verifiedCustomerId = customer.id;
+  }
+
   const products = await prisma.product.findMany({
     where: { tenantId: clubId, id: { in: items.map((i) => i.productId) } },
     select: { id: true, price: true, stock: true },
@@ -68,18 +80,18 @@ export async function POST(
   try {
     const sale = await prisma.$transaction(async (tx) => {
       if (paymentMethod === "BALANCE") {
-        if (!body.customerId) {
+        if (!verifiedCustomerId) {
           throw new SaleError(400, "customerId is required to pay from balance");
         }
         const customer = await tx.customer.findUnique({
-          where: { id: body.customerId },
+          where: { id: verifiedCustomerId },
           select: { balance: true },
         });
         if (!canPayFromBalance(customer, cost)) {
           throw new SaleError(400, "Insufficient balance");
         }
         await tx.customer.update({
-          where: { id: body.customerId },
+          where: { id: verifiedCustomerId },
           data: { balance: { decrement: cost } },
         });
       }
@@ -94,7 +106,7 @@ export async function POST(
       return tx.sale.create({
         data: {
           tenantId: clubId,
-          customerId: paymentMethod === "BALANCE" ? body.customerId : (body.customerId ?? null),
+          customerId: verifiedCustomerId,
           cost,
           paymentMethod,
           shiftId: openShift?.id ?? null,
