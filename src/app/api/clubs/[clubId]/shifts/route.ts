@@ -47,6 +47,10 @@ export async function GET(
     const payments = [...shift.sessions, ...shift.sales];
     const totals = totalsOf(payments);
     const expected = expectedCash(shift.openingCash, payments);
+    // sessionsCount intentionally stays session-only, same reasoning as POST
+    // /api/shifts/[shiftId]/close — cashRevenue/cardRevenue from totals
+    // correctly include sale revenue, but sessionsCount must not be polluted
+    // by sale count.
     return {
       id: shift.id,
       openedBy: shift.openedBy,
@@ -58,6 +62,7 @@ export async function GET(
       expectedCash: expected,
       difference: shift.closingCash != null ? shift.closingCash - expected : null,
       ...totals,
+      sessionsCount: shift.sessions.length,
     };
   };
 
